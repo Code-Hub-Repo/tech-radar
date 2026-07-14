@@ -7,8 +7,12 @@ import gr.codehub.techradar.app.plugins.configureSerialization
 import gr.codehub.techradar.app.plugins.configureStatusPages
 import gr.codehub.techradar.app.routes.healthRoute
 import gr.codehub.techradar.constants.AppConfig
+import gr.codehub.techradar.db.repository.EntriesRepository
+import gr.codehub.techradar.db.seed.seed
 import io.ktor.server.application.Application
 import io.ktor.server.routing.routing
+import kotlinx.coroutines.runBlocking
+import org.koin.ktor.ext.get
 
 fun Application.module(config: AppConfig) {
     configureSerialization()
@@ -20,7 +24,10 @@ fun Application.module(config: AppConfig) {
     // real Postgres before any route accepts traffic.
     configureDatabase(config)
 
-    // Seam (01-05): seed(config) — called here, after configureDatabase, once the seed runner exists.
+    // Idempotent seed — the empty-table gate inside seed() makes this safe on every boot; only the
+    // first boot against an empty database actually inserts anything.
+    runBlocking { seed(get<EntriesRepository>()) }
+
     // Seam (01-06): configureAuthentication(config), configureRateLimit() — called here, before
     // routing, so authenticate("auth-jwt") { } is available to write routes below.
 
