@@ -11,7 +11,7 @@ A public technology radar for Code.Hub at **radar.codehub.gr**: an interactive v
 The implementation plan is a 4-team × 4-week program. This repository delivers everything a single codebase can deliver:
 
 **In scope**
-- Public radar UI: React + D3, Code.Hub branding, responsive, search/filter, legend, isNew indicator, detail panel, accessible list view
+- Public radar UI: React + D3, Code.Hub branding, responsive, search/filter, legend, isNew + ring-movement indicators, detail panel, accessible list view
 - Admin UI: login, add/edit/delete entries with validation
 - REST API: public reads, JWT-protected writes, validation, history endpoint, seed script, CORS, health endpoint
 - PostgreSQL schema + migrations
@@ -38,7 +38,7 @@ The implementation plan is a 4-team × 4-week program. This repository delivers 
 
 ```
 tech-radar/                     (monorepo)
-├── frontend/                   React 18+ · Vite · TypeScript · Tailwind CSS · D3 (math only) · TanStack Query
+├── frontend/                   React 19 · Vite · TypeScript · Tailwind CSS · D3 (math only) · TanStack Query
 ├── backend/                    Kotlin · Ktor 3 · Exposed · PostgreSQL · Flyway · Koin DI
 ├── deploy/                     docker-compose.yml, .env.example, nginx.conf, runbooks
 ├── design-system/              MASTER.md (visual source of truth)
@@ -58,9 +58,13 @@ backend/
 ├── feature_auth/        Route handler: login
 ├── core_usecases/       GetEntries, CreateEntry, UpdateEntry, DeleteEntry, GetHistory, Login — operator fun invoke(), Result<T>
 ├── core_api/            DTOs + kotlinx.serialization (EntryResponse, EntryRequest, HistoryResponse, LoginRequest/Response, ErrorResponse)
-├── core_db/             Exposed tables, EntriesRepository, HistoryRepository, Flyway migrations
-└── core_constants/      ApiRoutes, ValidationConstants, ErrorCodes, LogTags
+├── core_db/             Exposed tables, EntriesRepository, HistoryRepository (read-only), Flyway migrations
+└── core_constants/      ApiRoutes, ValidationConstants, ErrorCodes, LogTags, AppConfig
 ```
+
+Two structural rules that must hold from the first line of code:
+- **`AppConfig` lives in `core_constants`** (leaf module): both `core_usecases` (JWT issuance) and `app` (JWT verification) need the same JWT settings — placing config in `app` would invert the dependency graph.
+- **History appends are atomic:** `EntriesRepository` performs the entry write *and* the history snapshot inside one Exposed `transaction {}`. `HistoryRepository` is read-only. A mutation path that forgets history is structurally impossible.
 
 Standards honored: features → UseCases → Repositories (never DB direct); no magic values (all in `core_constants`); `AppConfig` object is the only place reading `System.getenv()`; SLF4J/Logback logging in `MODULE :: File :: function() :: message` format; enums for domains: `Ring { ADOPT, TRIAL, ASSESS, HOLD }`, `Quadrant { LANGUAGES_FRAMEWORKS, TOOLS, PLATFORMS, TECHNIQUES }` with `apiName` + `fromApiName()` — no string `when` blocks.
 
@@ -94,6 +98,8 @@ entry_history (                               -- append-only snapshot per mutati
 ```
 
 Every successful POST/PUT/DELETE appends one history row (the resulting state; for DELETED, the last state). "When did X move rings" = consecutive history rows for an entry with different `ring`.
+
+**Computed movement:** `GET /api/entries` returns a `movement` field (`IN` | `OUT` | `NONE`) per entry — derived from the most recent consecutive history pair with differing rings, when that change happened within the movement window (90 days, `core_constants`). Ring order for direction: ADOPT < TRIAL < ASSESS < HOLD; index decreased ⇒ `IN`. `isNew` entries report `NONE` (new trumps moved). This is the standard "moved" marker every reference radar has (ThoughtWorks/Zalando triangle convention).
 
 ### API contract
 
@@ -144,7 +150,7 @@ frontend/src/
 
 - Geometry: quadrant = 90° sector; rings = radial bands with edges at `[0, 0.36, 0.62, 0.82, 1.0] × R` (inner rings wider — classic radar look, Adopt innermost).
 - Blip placement: `computeBlipLayout(entries, size)` — deterministic seeded-random position within each blip's sector×band (seed = entry id, so positions are stable across reloads), then iterative collision relaxation clamped to the band. Pure function, unit-tested: stays inside its band/sector, no overlaps beyond tolerance, deterministic.
-- Blips: numbered dots (Fira Code) colored by ring (see design system: Adopt `#f97316`, Trial `#38bdf8`, Assess `#a78bfa`, Hold `#8b8b93`); `isNew` gets an accent glow + pulse ring (disabled under `prefers-reduced-motion`) — numbers cross-reference the list view.
+- Blips: numbered dots (Fira Code) colored by ring (see design system: Adopt `#f97316`, Trial `#38bdf8`, Assess `#a78bfa`, Hold `#9ca3af`); `isNew` gets an accent glow + pulse ring (disabled under `prefers-reduced-motion`); ring-moved entries get a directional notch (toward center = moved in, away = moved out) with the movement stated in text in tooltip/detail — numbers cross-reference the list view.
 - Interaction: hover → tooltip; click/Enter → detail panel; blips are real buttons in the a11y tree (tabbable, labeled "Kotlin — Adopt, Languages & Frameworks"); hit area extended to ≥44px via transparent overlay circle.
 - Filtering dims non-matching blips to 25% opacity instead of removing them (spatial stability).
 - Performance: layout memoized on `(entries, size)`; SVG with ≤100 nodes renders far under the 1s budget; no re-layout on hover/selection.
@@ -163,14 +169,14 @@ TanStack Query for server state (entries list cached, invalidated on mutations �
 
 ## 6. Testing
 
-- **Backend:** Ktor `testApplication` endpoint tests — CRUD happy paths, 400 validation (bad ring/quadrant/blank name), 401 without/with-bad token, 404, 409 duplicate, history append on each mutation, login success/failure, health. DB: H2 in PostgreSQL-compatibility mode for speed (Flyway runs same migrations; PG-specific SQL avoided).
+- **Backend:** Ktor `testApplication` endpoint tests — CRUD happy paths, 400 validation (bad ring/quadrant/blank name), 401 without/with-bad token, 404, 409 duplicate, history append on each mutation, movement computation, login success/failure, health. DB: **Testcontainers + real PostgreSQL** (one container reused across the suite) — the schema uses a `LOWER(name)` functional unique index that H2 cannot express, so tests run against the same engine as production.
 - **Frontend:** Vitest + RTL — `radarGeometry` invariants, `filtering` logic, API client behavior (mocked fetch), FilterBar/DetailPanel component tests.
 - **E2E:** Playwright against docker-compose stack — chromium + firefox + webkit projects (the plan's cross-browser matrix): radar loads with seeded blips, click blip → panel, filter works, admin login → create entry → visible on radar.
 
 ## 7. Deployment prep (DevOps deliverables)
 
-- `backend/Dockerfile`: multi-stage Gradle build → JRE 21 slim; `frontend/Dockerfile`: Vite build → nginx.
-- `deploy/docker-compose.yml`: postgres (volume, healthcheck) + backend (waits healthy) + frontend; `deploy/.env.example` documents every variable.
+- `backend/Dockerfile`: multi-stage Gradle build → Temurin JRE 25 slim (Java 21 free updates end Sep 2026); `frontend/Dockerfile`: Vite build → nginx.
+- `deploy/docker-compose.yml`: PostgreSQL 18 (note: 18 changed the Docker data path — volume mounts `/var/lib/postgresql`, not the old `/var/lib/postgresql/data`), healthcheck via `pg_isready`, backend waits on `service_healthy`, frontend last; `deploy/.env.example` documents every variable.
 - `.github/workflows/`: backend (build + test), frontend (typecheck + test + build); deploy jobs templated with commented Cloudflare Pages / registry-push steps ready to arm when secrets are configured.
 - `docs/DEPLOYMENT.md`: DNS record table (radar → Pages/host, api-radar → server), HTTPS notes, uptime check on `/api/health`, daily `pg_dump` backup cron, secret inventory, redeploy steps, and the go-live checklist.
 - `docs/API.md`: endpoint list with request/response examples.
@@ -201,13 +207,17 @@ TanStack Query for server state (entries list cached, invalidated on mutations �
 | Filter state | URL search params | Shareable deep links, back/forward works |
 | List view | Always rendered below radar | Accessibility + SEO + mobile primary view, not an afterthought |
 | History model | Append-only snapshots, no FK cascade | Survives deletions; simplest model answering "when did it move" |
+| Movement indicator in v1 | Computed `movement` field + blip notch | Table stakes in every reference radar; `entry_history` already holds the data |
 | Name uniqueness | Case-insensitive unique + 409 | Duplicate techs must be merged; DB enforces it |
-| Tests DB | H2 in PG mode | Fast unit tests; compose stack + Playwright covers real PG |
+| Tests DB | Testcontainers + real PostgreSQL | `LOWER(name)` functional index is untestable on H2; same engine as prod |
+| AppConfig in `core_constants` | Leaf module all others depend on | `core_usecases` and `app` both need JWT settings; avoids dependency inversion |
+| Atomic history writes | Entry write + snapshot in one transaction | Forgotten history rows become structurally impossible |
 | Auth storage | localStorage + auto-redirect on 401 | Internal admin tool; documented trade-off, 8h token expiry |
+| Version pins | Exposed 1.3.x (v1 namespace, `suspendTransaction`), TypeScript 6.0.3, react-router v8, Java 25, PostgreSQL 18 | Verified current mid-2026; older tutorials target deprecated APIs |
 
 ## 10. Build order
 
-1. **Backend foundation** — Gradle modules, config, DB, migrations, CRUD + auth + history + seed + tests + Dockerfile
+1. **Backend foundation** — Gradle modules (build order: `core_constants` → `core_api` + `core_db` → `core_usecases` → `feature_*` → `app`), `.gitattributes` (CRLF safety on Windows), config, DB, migrations, CRUD + auth + history + movement + seed + tests + Dockerfile
 2. **Frontend radar** — scaffold, tokens, geometry engine, radar SVG, legend, detail panel, list view, search/filter, responsive
 3. **Admin** — login, guarded CRUD UI, toasts/validation
 4. **Ship-ready** — compose stack, CI workflows, Playwright cross-browser, API/deployment docs, performance verification

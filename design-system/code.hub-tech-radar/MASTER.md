@@ -44,7 +44,9 @@ Blips are colored by **ring** (the adoption verdict). Orange is reserved for Ado
 | Adopt | `#f97316` | `--ring-adopt` | ≈ 6.6:1 |
 | Trial | `#38bdf8` | `--ring-trial` | ≈ 8.1:1 |
 | Assess | `#a78bfa` | `--ring-assess` | ≈ 6.2:1 |
-| Hold | `#8b8b93` | `--ring-hold` | ≈ 3.9:1 |
+| Hold | `#9ca3af` | `--ring-hold` | ≈ 6.6:1 |
+
+Hold stays the *least saturated* color (semantic de-emphasis comes from grayness, not low contrast — it must survive the dimmed filter state below).
 
 Ring guide circles on the radar: `#2e2e2e` strokes (subtle, gridline-level). Quadrant labels: muted text. Never rely on color alone — ring is also encoded by radial position, legend, and text labels.
 
@@ -175,9 +177,18 @@ Dark theme: elevation communicated mostly via surface lightness steps (`#1a1a1a 
   cursor: pointer;
   transition: opacity 200ms ease;
 }
-.blip--dimmed { opacity: 0.25; }          /* when filtered out */
+.blip--dimmed { opacity: 0.35; }          /* when filtered out — 0.25 made Hold labels illegible; verify contrast in the DIMMED state, not just resting */
 .blip--new { filter: drop-shadow(var(--glow-accent)); } /* plus animated pulse ring, disabled under prefers-reduced-motion */
 .blip:focus-visible { outline: none; stroke: #f97316; stroke-width: 2.5; }
+```
+
+### Movement indicators (ring changes)
+
+An entry whose ring changed within the movement window (90 days) renders a small directional notch on the blip: pointing **toward center** = moved in (toward Adopt), **away from center** = moved out. `isNew` takes precedence — a new entry never also shows a movement notch. Never color-only: the legend explains both markers, and the detail panel/list state it in text ("Moved in from Trial · May 2026").
+
+```css
+.blip__notch--in  { fill: currentColor; }  /* triangle apex toward radar center */
+.blip__notch--out { fill: currentColor; }  /* triangle apex away from center */
 ```
 
 ---
