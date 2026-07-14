@@ -9,10 +9,13 @@ import gr.codehub.techradar.app.routes.healthRoute
 import gr.codehub.techradar.constants.AppConfig
 import gr.codehub.techradar.db.repository.EntriesRepository
 import gr.codehub.techradar.db.seed.seed
+import gr.codehub.techradar.feature.entries.entriesReadRoutes
+import gr.codehub.techradar.usecases.usecaseModule
 import io.ktor.server.application.Application
 import io.ktor.server.routing.routing
 import kotlinx.coroutines.runBlocking
 import org.koin.ktor.ext.get
+import org.koin.ktor.ext.getKoin
 
 fun Application.module(config: AppConfig) {
     configureSerialization()
@@ -24,6 +27,9 @@ fun Application.module(config: AppConfig) {
     // real Postgres before any route accepts traffic.
     configureDatabase(config)
 
+    // Extends the already-installed Koin instance with the UseCase layer.
+    getKoin().loadModules(listOf(usecaseModule))
+
     // Idempotent seed — the empty-table gate inside seed() makes this safe on every boot; only the
     // first boot against an empty database actually inserts anything.
     runBlocking { seed(get<EntriesRepository>()) }
@@ -33,8 +39,9 @@ fun Application.module(config: AppConfig) {
 
     routing {
         healthRoute()
+        entriesReadRoutes()
 
-        // Seam (01-05/01-07): entriesRoutes(), historyRoutes(), authRoutes() registered here.
-        // Write routes (POST/PUT/DELETE) wrapped in authenticate("auth-jwt") { } once 01-06 lands.
+        // Seam (01-07): authRoutes() and the write (POST/PUT/DELETE) entries routes, the latter
+        // wrapped in authenticate("auth-jwt") { } once 01-06 lands.
     }
 }
