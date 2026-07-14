@@ -2,7 +2,7 @@
 // loading skeleton layer, and a positioned <Blip> per entry. D3 supplies the ring/quadrant/
 // layout geometry math only (lib/radarGeometry.ts); every element below is a React-owned SVG
 // node -- no DOM-mutating D3 submodule is ever imported here.
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import type { Entry, FilterState } from '../../api/types'
 import { quadrantLabel } from '../../api/types'
 import { orderedEntries } from '../../lib/entryOrder'
@@ -13,6 +13,7 @@ import {
   computeBlipLayout,
 } from '../../lib/radarGeometry'
 import { Blip } from './Blip'
+import { BlipTooltip } from './BlipTooltip'
 
 interface RadarChartProps {
   entries: Entry[]
@@ -49,12 +50,11 @@ function polarToCartesian(center: number, radius: number, angle: number): { x: n
   }
 }
 
-function noopHoverChange() {}
-
 // Renders the radar's static chrome, a positioned+numbered+ring-colored <Blip> per entry (in
-// quadrant->ring->alphabetical DOM order, mirroring the list's tab order), and -- while
-// isLoading -- skeleton placeholders instead of real blips. filterState/isSelected/isFocused
-// wiring stays inert until selection (02-05) and filtering (02-06) land.
+// quadrant->ring->alphabetical DOM order, mirroring the list's tab order), a single BlipTooltip
+// for whichever entry is currently hovered/focused, and -- while isLoading -- skeleton
+// placeholders instead of real blips. filterState/isDimmed wiring stays inert until filtering
+// (02-06) lands.
 export function RadarChart({
   entries,
   selectedEntryId,
@@ -64,6 +64,7 @@ export function RadarChart({
 }: RadarChartProps) {
   const outerRadius = size / 2
   const bands = ringRadii(outerRadius)
+  const [hoveredEntryId, setHoveredEntryId] = useState<number | null>(null)
 
   // Layout is memoized on (entries, size) only -- never re-runs on hover/select (02-RESEARCH.md
   // performance note). Numbering is a cheap sort, kept separate from the expensive d3-force
@@ -71,6 +72,8 @@ export function RadarChart({
   const positions = useMemo(() => computeBlipLayout(entries, size), [entries, size])
   const numbers = orderedEntries(entries)
   const positionById = new Map(positions.map((position) => [position.id, position]))
+  const hoveredEntry = entries.find((entry) => entry.id === hoveredEntryId)
+  const hoveredPosition = hoveredEntryId !== null ? positionById.get(hoveredEntryId) : undefined
 
   return (
     <svg
@@ -152,11 +155,20 @@ export function RadarChart({
                 isSelected={selectedEntryId === entry.id}
                 isFocused={false}
                 onSelect={onBlipSelect}
-                onHoverChange={noopHoverChange}
+                onHoverChange={(isHovering) => setHoveredEntryId(isHovering ? entry.id : null)}
               />
             )
           })
         : null}
+
+      {hoveredEntry && hoveredPosition ? (
+        <BlipTooltip
+          entry={hoveredEntry}
+          anchorPosition={hoveredPosition}
+          visible
+          viewport={{ w: size, h: size }}
+        />
+      ) : null}
     </svg>
   )
 }

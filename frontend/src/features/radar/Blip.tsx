@@ -24,9 +24,11 @@ interface BlipProps {
   number: number
   /** Opacity toggle is live now (the WCAG dim fix); filtering never sets this true yet (02-06). */
   isDimmed?: boolean
-  /** Accepted but inert until selection is wired (02-05). */
+  /** Renders the permanent accent-stroke halo below — distinct from the transient global
+      :focus-visible outline on the button itself. Driven by one selectedEntryId (02-05). */
   isSelected?: boolean
-  /** Accepted but inert until selection is wired (02-05). */
+  /** Accepted but inert — no roving-focus visual is needed (native tab order, see Blip.tsx's
+      own button; RADR-02's read_first). */
   isFocused?: boolean
   onSelect: (id: number) => void
   onHoverChange: (isHovering: boolean) => void
@@ -58,6 +60,7 @@ export function Blip({
   position,
   number,
   isDimmed = false,
+  isSelected = false,
   onSelect,
   onHoverChange,
 }: BlipProps) {
@@ -92,6 +95,11 @@ export function Blip({
       {/* Decorative three-layer visual -- hidden from the a11y tree and non-interactive; the
           <button> below carries the sole accessible name and all interaction. */}
       <g aria-hidden="true" pointerEvents="none">
+        {/* Selected-state halo -- a permanent accent stroke ring, distinct from the transient
+            global :focus-visible outline the button itself picks up on keyboard focus. */}
+        {isSelected ? (
+          <circle r={VISIBLE_RADIUS + 5} fill="none" className="stroke-accent" strokeWidth={2} />
+        ) : null}
         {/* Layer 1: outline -- opacity always 1.0, never dimmed (WCAG shape-contrast floor). */}
         <circle
           r={VISIBLE_RADIUS}

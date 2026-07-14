@@ -5,11 +5,12 @@ interface EntryListRowProps {
   entry: Entry
   /** Blip number cross-referencing the radar (RADR-06) — same value on both surfaces. */
   number: number
-  /** Accepted but inert until selection is wired (02-05). */
+  /** Renders the surface-raised bg + 3px left accent border below. Driven by one
+      selectedEntryId, shared with the radar's own blip halo (02-05). */
   isSelected?: boolean
   /** Accepted but inert until filtering is wired (02-06). */
   isDimmed?: boolean
-  /** Accepted but inert until selection is wired (02-05). */
+  /** Fires on click/Enter/Space (native button activation) with the entry's id. */
   onSelect?: (id: number) => void
 }
 
@@ -20,23 +21,32 @@ const RING_BADGE_CLASS: Record<Ring, string> = {
   HOLD: 'bg-ring-hold',
 }
 
-// One entry row: blip number + name + ring badge. A plain semantic list item for this wave —
-// click/selection wiring (which turns this into a real interactive button) arrives in 02-05.
-// Movement/isNew text is added in 02-07.
-export function EntryListRow({ entry, number }: EntryListRowProps) {
+// One entry row: blip number + name + ring badge, as a real activatable <button> so click and
+// native Enter/Space both call onSelect (RADR-06 cross-reference + keyboard parity with the
+// radar's own blip buttons). Movement/isNew text is added in 02-07; isDimmed rendering logic
+// arrives with real filtering in 02-06.
+export function EntryListRow({ entry, number, isSelected = false, onSelect }: EntryListRowProps) {
   return (
-    <li className="flex items-center gap-4 border-b border-border px-4 py-3 last:border-b-0">
-      <span className="w-8 shrink-0 text-right font-mono text-[14px] leading-[1.4] tabular-nums text-muted">
-        {number}
-      </span>
-      <span className="flex-1 font-sans text-[16px] font-semibold leading-[1.5] text-foreground">
-        {entry.name}
-      </span>
-      <span
-        className={`rounded-full px-3 py-1 font-mono text-[14px] font-semibold leading-[1.4] text-on-accent ${RING_BADGE_CLASS[entry.ring]}`}
+    <li className="border-b border-border last:border-b-0">
+      <button
+        type="button"
+        onClick={() => onSelect?.(entry.id)}
+        className={`flex w-full cursor-pointer items-center gap-4 border-l-[3px] px-4 py-3 text-left transition-colors duration-200 ${
+          isSelected ? 'border-l-accent bg-surface-raised' : 'border-l-transparent bg-transparent'
+        }`}
       >
-        {ringLabel[entry.ring]}
-      </span>
+        <span className="w-8 shrink-0 text-right font-mono text-[14px] leading-[1.4] tabular-nums text-muted">
+          {number}
+        </span>
+        <span className="flex-1 font-sans text-[16px] font-semibold leading-[1.5] text-foreground">
+          {entry.name}
+        </span>
+        <span
+          className={`rounded-full px-3 py-1 font-mono text-[14px] font-semibold leading-[1.4] text-on-accent ${RING_BADGE_CLASS[entry.ring]}`}
+        >
+          {ringLabel[entry.ring]}
+        </span>
+      </button>
     </li>
   )
 }

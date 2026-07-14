@@ -8,10 +8,10 @@ interface EntryListViewProps {
   entries: Entry[]
   /** Accepted but inert until filtering is wired (02-06). */
   filterState: FilterState
-  /** Accepted but inert until selection is wired (02-05). */
+  /** Threaded to each EntryListRow's isSelected — one URL-sourced id, shared with the radar. */
   selectedEntryId: number | null
   isLoading: boolean
-  /** Accepted but inert until selection is wired (02-05). */
+  /** Threaded to each EntryListRow's onSelect. */
   onEntrySelect: (id: number) => void
 }
 
@@ -20,7 +20,7 @@ const SKELETON_ROW_COUNT = 6
 // Grouped rows (quadrant -> ring -> entries) — the always-present, non-visual twin of the
 // radar (EXPL-05). Renders skeleton rows while isLoading; HomePage resolves error/empty
 // before this component is ever mounted for those states (State Matrix precedence).
-export function EntryListView({ entries, isLoading }: EntryListViewProps) {
+export function EntryListView({ entries, selectedEntryId, isLoading, onEntrySelect }: EntryListViewProps) {
   if (isLoading) {
     return (
       <div id="list-view" className="flex flex-col gap-2">
@@ -54,7 +54,13 @@ export function EntryListView({ entries, isLoading }: EntryListViewProps) {
               </h3>
               <ul className="flex flex-col rounded-lg border border-border bg-surface">
                 {ringGroup.entries.map(({ entry, number }) => (
-                  <EntryListRow key={entry.id} entry={entry} number={number} />
+                  <EntryListRow
+                    key={entry.id}
+                    entry={entry}
+                    number={number}
+                    isSelected={entry.id === selectedEntryId}
+                    onSelect={onEntrySelect}
+                  />
                 ))}
               </ul>
             </div>
