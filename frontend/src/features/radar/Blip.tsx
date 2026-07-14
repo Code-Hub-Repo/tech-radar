@@ -11,6 +11,8 @@
 // re-entry point, so the real <button> lives there; the visible outline/fill/number layers
 // are separate, aria-hidden, pointer-events-none SVG siblings at the same coordinates -- the
 // button alone carries the accessible name.
+import { useRef } from 'react'
+import type { KeyboardEvent } from 'react'
 import type { Entry, Ring } from '../../api/types'
 import { ringLabel, quadrantLabel } from '../../api/types'
 import type { BlipPosition } from '../../lib/radarGeometry'
@@ -47,6 +49,9 @@ const RING_FILL_CLASS: Record<Ring, string> = {
 const VISIBLE_RADIUS = 9
 // 44px effective hit-area diameter (RADR-08 / UI-SPEC Touch Target spec).
 const HIT_AREA_RADIUS = 22
+// Show-tooltip intent delay (UI-SPEC Interaction Specs -> Blip hover/focus/click). Hiding has
+// no delay -- mouseleave/blur cancels any pending show and calls onHoverChange(false) at once.
+const HOVER_INTENT_DELAY_MS = 150
 
 export function Blip({
   entry,
@@ -56,6 +61,32 @@ export function Blip({
   onSelect,
   onHoverChange,
 }: BlipProps) {
+  const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+
+  function scheduleHoverShow() {
+    hoverTimeoutRef.current = setTimeout(() => {
+      onHoverChange(true)
+    }, HOVER_INTENT_DELAY_MS)
+  }
+
+  function cancelHoverShow() {
+    if (hoverTimeoutRef.current !== undefined) {
+      clearTimeout(hoverTimeoutRef.current)
+      hoverTimeoutRef.current = undefined
+    }
+    onHoverChange(false)
+  }
+
+  // Native <button> Enter/Space activation already dispatches a click on its own default
+  // action -- preventDefault here takes over that default action so onSelect fires exactly
+  // once per key press instead of once from this handler and again from the resulting click.
+  function handleKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault()
+      onSelect(entry.id)
+    }
+  }
+
   return (
     <g transform={`translate(${position.x}, ${position.y})`}>
       {/* Decorative three-layer visual -- hidden from the a11y tree and non-interactive; the
@@ -93,10 +124,11 @@ export function Blip({
           type="button"
           aria-label={`${entry.name} — ${ringLabel[entry.ring]}, ${quadrantLabel[entry.quadrant]}`}
           onClick={() => onSelect(entry.id)}
-          onFocus={() => onHoverChange(true)}
-          onBlur={() => onHoverChange(false)}
-          onMouseEnter={() => onHoverChange(true)}
-          onMouseLeave={() => onHoverChange(false)}
+          onKeyDown={handleKeyDown}
+          onFocus={scheduleHoverShow}
+          onBlur={cancelHoverShow}
+          onMouseEnter={scheduleHoverShow}
+          onMouseLeave={cancelHoverShow}
           className="h-full w-full cursor-pointer rounded-full bg-transparent"
         />
       </foreignObject>
