@@ -22,7 +22,8 @@ interface BlipProps {
   position: BlipPosition
   /** Blip number cross-referencing the list row (RADR-06) — from entryOrder.ts's orderedEntries. */
   number: number
-  /** Opacity toggle is live now (the WCAG dim fix); filtering never sets this true yet (02-06). */
+  /** Driven by RadarChart's matchedIds(entries, filterState) computation (EXPL-03) — true for
+      any entry not in the current filter/search match set. */
   isDimmed?: boolean
   /** Renders the permanent accent-stroke halo below — distinct from the transient global
       :focus-visible outline on the button itself. Driven by one selectedEntryId (02-05). */
@@ -107,8 +108,13 @@ export function Blip({
           className={RING_STROKE_CLASS[entry.ring]}
           strokeWidth={1.5}
         />
-        {/* Layer 2: fill -- opacity 1.0 normal / 0.35 dimmed (EXPL-03's locked value). */}
-        <circle r={VISIBLE_RADIUS} className={RING_FILL_CLASS[entry.ring]} opacity={isDimmed ? 0.35 : 1} />
+        {/* Layer 2: fill -- opacity 1.0 normal / 0.35 dimmed (EXPL-03's locked value), animated
+            200ms ease per the Animation Spec ("Blip dim (filter match/non-match)"). */}
+        <circle
+          r={VISIBLE_RADIUS}
+          className={`${RING_FILL_CLASS[entry.ring]} transition-opacity duration-200`}
+          opacity={isDimmed ? 0.35 : 1}
+        />
         {/* Layer 3: number glyph -- #1a1a1a on full fill, swaps to foreground when dimmed so it
             stays legible against the near-transparent fill (RADR-06 holds in every filter state). */}
         <text

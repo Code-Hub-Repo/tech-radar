@@ -7,18 +7,18 @@ import { ErrorState } from '../components/ErrorState'
 import { Header } from '../components/Header'
 import { DetailPanel } from '../features/entries/DetailPanel'
 import { EntryListView } from '../features/entries/EntryListView'
+import { FilterBar } from '../features/entries/FilterBar'
 import { Legend } from '../features/radar/Legend'
 import { RadarChart } from '../features/radar/RadarChart'
+import { matchedIds } from '../lib/filtering'
+import { filterStateFromParams, paramsFromPatch } from '../lib/urlParams'
 
-// Default, no-op filter state — FilterBar (02-06) will replace this with the real
-// URL-derived FilterState.
-const DEFAULT_FILTER_STATE: FilterState = {
-  quadrants: [],
-  rings: [],
-  newOnly: false,
-  query: '',
-  selectedEntryId: null,
-}
+// Exact Copywriting Contract strings (UI-SPEC) -- named here so both the radar overlay and the
+// list-area branch below render byte-identical copy (State Matrix: filtered-to-zero appears
+// "in BOTH surfaces", each with its own copy of the message).
+const FILTERED_TO_ZERO_HEADING = 'No matches found'
+const FILTERED_TO_ZERO_BODY = 'Try adjusting your filters or search term.'
+const CLEAR_FILTERS_LABEL = 'Clear filters'
 
 // Internal SVG coordinate-space size for RadarChart's viewBox; the wrapping div below caps the
 // actual rendered width (UI-SPEC's ultrawide radar cap), so this only affects proportions.
@@ -33,36 +33,37 @@ export function HomePage() {
   // on close — never a "first blip" fallback (UI-SPEC Interaction Specs -> Close detail panel).
   const triggerRef = useRef<HTMLElement | null>(null)
 
-  // T-02-URL mitigation: entry parsed with Number.isInteger; non-numeric/unknown value is
-  // treated as no selection, never thrown into a raw entries.find() lookup.
-  const rawEntryParam = searchParams.get('entry')
-  const parsedEntryId = rawEntryParam !== null ? Number(rawEntryParam) : Number.NaN
-  const selectedEntryId = Number.isInteger(parsedEntryId) ? parsedEntryId : null
+  // URL is the single source of truth for both filters and selection (EXPL-04) -- every param
+  // is defensively parsed as untrusted input (T-02-URLI), never thrown. filterState.selectedEntryId
+  // replaces the old inline entry-param parsing that lived here before urlParams.ts existed.
+  const filterState = filterStateFromParams(searchParams)
+  const matched = matchedIds(entries, filterState)
   const selectedEntry =
-    selectedEntryId !== null ? (entries.find((entry) => entry.id === selectedEntryId) ?? null) : null
+    filterState.selectedEntryId !== null
+      ? (entries.find((entry) => entry.id === filterState.selectedEntryId) ?? null)
+      : null
+  const isFilteredToZero = !isPending && entries.length > 0 && matched.size === 0
 
   function handleSelectEntry(id: number) {
     triggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
     // Selection is a meaningful, back-button-undoable action -> default push.
-    setSearchParams((prev) => {
-      const next = new URLSearchParams(prev)
-      next.set('entry', String(id))
-      return next
-    })
+    setSearchParams(paramsFromPatch(searchParams, { selectedEntryId: id }))
   }
 
   function handleClosePanel() {
     // Deterministic regardless of how the panel was opened (in-app click vs. a shared deep
     // link) -- explicit param removal via replace:true, not a history-back navigation.
-    setSearchParams(
-      (prev) => {
-        const next = new URLSearchParams(prev)
-        next.delete('entry')
-        return next
-      },
-      { replace: true },
-    )
+    setSearchParams(paramsFromPatch(searchParams, { selectedEntryId: null }), { replace: true })
     triggerRef.current?.focus()
+  }
+
+  function handleFilterChange(patch: Partial<FilterState>) {
+    // Chip toggles are discrete, meaningful actions -> default push (UI-SPEC History behavior).
+    setSearchParams(paramsFromPatch(searchParams, patch))
+  }
+
+  function handleClearFilters() {
+    setSearchParams(paramsFromPatch(searchParams, { quadrants: [], rings: [], newOnly: false, query: '' }))
   }
 
   return (
@@ -79,20 +80,41 @@ export function HomePage() {
           />
         ) : (
           <>
+            <div className="mb-8">
+              <FilterBar
+                filterState={filterState}
+                resultCount={{ shown: matched.size, total: entries.length }}
+                onChange={handleFilterChange}
+              />
+            </div>
             {/* Radar + docked detail panel. The panel column only exists while an entry is
                 selected (unmounted, not a reserved empty gutter) and sits beside the radar at
                 lg+ widths, stacking below it on narrower viewports -- full responsive
                 breakpoint behavior (mobile sheet, tablet zone) lands in 02-08. */}
             <div className="mb-8 flex flex-col gap-8 lg:flex-row lg:items-start">
-              <div className="mx-auto w-full max-w-[760px] lg:mx-0 lg:flex-1">
+              <div className="relative mx-auto w-full max-w-[760px] lg:mx-0 lg:flex-1">
                 <RadarChart
                   entries={isPending ? [] : entries}
-                  filterState={DEFAULT_FILTER_STATE}
-                  selectedEntryId={selectedEntryId}
+                  filterState={filterState}
+                  selectedEntryId={filterState.selectedEntryId}
                   size={RADAR_SIZE}
                   isLoading={isPending}
                   onBlipSelect={handleSelectEntry}
                 />
+                {/* Radar keeps every blip rendered, dimmed rather than removed -- this banner is
+                    a HomePage-level overlay, not RadarChart-owned state (State Matrix: filtered-
+                    to-zero appears "in BOTH surfaces", each with its own copy of the message). */}
+                {isFilteredToZero ? (
+                  <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6">
+                    <div className="pointer-events-auto w-full max-w-sm">
+                      <EmptyState
+                        heading={FILTERED_TO_ZERO_HEADING}
+                        body={FILTERED_TO_ZERO_BODY}
+                        action={{ label: CLEAR_FILTERS_LABEL, onClick: handleClearFilters }}
+                      />
+                    </div>
+                  </div>
+                ) : null}
               </div>
               {selectedEntry ? (
                 <div className="w-full lg:w-[380px] lg:shrink-0">
@@ -111,8 +133,8 @@ export function HomePage() {
             {isPending ? (
               <EntryListView
                 entries={[]}
-                filterState={DEFAULT_FILTER_STATE}
-                selectedEntryId={selectedEntryId}
+                filterState={filterState}
+                selectedEntryId={filterState.selectedEntryId}
                 isLoading
                 onEntrySelect={handleSelectEntry}
               />
@@ -121,11 +143,17 @@ export function HomePage() {
                 heading="No entries yet"
                 body="Check back soon — the radar is updated as Code.Hub evaluates new technologies."
               />
+            ) : isFilteredToZero ? (
+              <EmptyState
+                heading={FILTERED_TO_ZERO_HEADING}
+                body={FILTERED_TO_ZERO_BODY}
+                action={{ label: CLEAR_FILTERS_LABEL, onClick: handleClearFilters }}
+              />
             ) : (
               <EntryListView
                 entries={entries}
-                filterState={DEFAULT_FILTER_STATE}
-                selectedEntryId={selectedEntryId}
+                filterState={filterState}
+                selectedEntryId={filterState.selectedEntryId}
                 isLoading={false}
                 onEntrySelect={handleSelectEntry}
               />

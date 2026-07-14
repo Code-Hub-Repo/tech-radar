@@ -6,6 +6,7 @@ import { useMemo, useState } from 'react'
 import type { Entry, FilterState } from '../../api/types'
 import { quadrantLabel } from '../../api/types'
 import { orderedEntries } from '../../lib/entryOrder'
+import { matchedIds } from '../../lib/filtering'
 import {
   QUADRANT_ORDER,
   ringRadii,
@@ -53,10 +54,11 @@ function polarToCartesian(center: number, radius: number, angle: number): { x: n
 // Renders the radar's static chrome, a positioned+numbered+ring-colored <Blip> per entry (in
 // quadrant->ring->alphabetical DOM order, mirroring the list's tab order), a single BlipTooltip
 // for whichever entry is currently hovered/focused, and -- while isLoading -- skeleton
-// placeholders instead of real blips. filterState/isDimmed wiring stays inert until filtering
-// (02-06) lands.
+// placeholders instead of real blips. filterState drives each blip's isDimmed (EXPL-03) via
+// matchedIds; entries are always all rendered, never removed (spatial stability).
 export function RadarChart({
   entries,
+  filterState,
   selectedEntryId,
   size,
   isLoading,
@@ -66,11 +68,14 @@ export function RadarChart({
   const bands = ringRadii(outerRadius)
   const [hoveredEntryId, setHoveredEntryId] = useState<number | null>(null)
 
-  // Layout is memoized on (entries, size) only -- never re-runs on hover/select (02-RESEARCH.md
-  // performance note). Numbering is a cheap sort, kept separate from the expensive d3-force
-  // relaxation so an unrelated re-render never re-triggers the 300-tick simulation.
+  // Layout is memoized on (entries, size) only -- never re-runs on hover/select/filter
+  // (02-RESEARCH.md performance note). Numbering is a cheap sort, kept separate from the
+  // expensive d3-force relaxation so an unrelated re-render never re-triggers the 300-tick
+  // simulation. matchedIds is a cheap O(entries) scan (<=100 blips) -- not worth memoizing
+  // separately since filterState is a fresh object every HomePage render anyway.
   const positions = useMemo(() => computeBlipLayout(entries, size), [entries, size])
   const numbers = orderedEntries(entries)
+  const matched = matchedIds(entries, filterState)
   const positionById = new Map(positions.map((position) => [position.id, position]))
   const hoveredEntry = entries.find((entry) => entry.id === hoveredEntryId)
   const hoveredPosition = hoveredEntryId !== null ? positionById.get(hoveredEntryId) : undefined
@@ -151,7 +156,7 @@ export function RadarChart({
                 entry={entry}
                 position={position}
                 number={number}
-                isDimmed={false}
+                isDimmed={!matched.has(entry.id)}
                 isSelected={selectedEntryId === entry.id}
                 isFocused={false}
                 onSelect={onBlipSelect}
