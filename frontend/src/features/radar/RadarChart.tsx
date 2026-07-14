@@ -1,10 +1,18 @@
-// Static SVG chrome (ring guide bands, quadrant sector dividers, quadrant labels) plus a
-// data-independent loading skeleton layer. D3 supplies the ring/quadrant geometry math only
-// (lib/radarGeometry.ts); every element below is a React-owned SVG node -- no DOM-mutating
-// D3 submodule is ever imported here.
+// SVG chrome (ring guide bands, quadrant sector dividers, quadrant labels), a data-independent
+// loading skeleton layer, and a positioned <Blip> per entry. D3 supplies the ring/quadrant/
+// layout geometry math only (lib/radarGeometry.ts); every element below is a React-owned SVG
+// node -- no DOM-mutating D3 submodule is ever imported here.
+import { useMemo } from 'react'
 import type { Entry, FilterState } from '../../api/types'
 import { quadrantLabel } from '../../api/types'
-import { QUADRANT_ORDER, ringRadii, quadrantSectorPath } from '../../lib/radarGeometry'
+import { orderedEntries } from '../../lib/entryOrder'
+import {
+  QUADRANT_ORDER,
+  ringRadii,
+  quadrantSectorPath,
+  computeBlipLayout,
+} from '../../lib/radarGeometry'
+import { Blip } from './Blip'
 
 interface RadarChartProps {
   entries: Entry[]
@@ -41,12 +49,28 @@ function polarToCartesian(center: number, radius: number, angle: number): { x: n
   }
 }
 
-// Renders the radar's static chrome + (while isLoading) skeleton placeholders. entries /
-// filterState / selectedEntryId / onBlipSelect are already part of the public prop contract
-// so the real <Blip> layer can be wired in without a signature change.
-export function RadarChart({ size, isLoading }: RadarChartProps) {
+function noopHoverChange() {}
+
+// Renders the radar's static chrome, a positioned+numbered+ring-colored <Blip> per entry (in
+// quadrant->ring->alphabetical DOM order, mirroring the list's tab order), and -- while
+// isLoading -- skeleton placeholders instead of real blips. filterState/isSelected/isFocused
+// wiring stays inert until selection (02-05) and filtering (02-06) land.
+export function RadarChart({
+  entries,
+  selectedEntryId,
+  size,
+  isLoading,
+  onBlipSelect,
+}: RadarChartProps) {
   const outerRadius = size / 2
   const bands = ringRadii(outerRadius)
+
+  // Layout is memoized on (entries, size) only -- never re-runs on hover/select (02-RESEARCH.md
+  // performance note). Numbering is a cheap sort, kept separate from the expensive d3-force
+  // relaxation so an unrelated re-render never re-triggers the 300-tick simulation.
+  const positions = useMemo(() => computeBlipLayout(entries, size), [entries, size])
+  const numbers = orderedEntries(entries)
+  const positionById = new Map(positions.map((position) => [position.id, position]))
 
   return (
     <svg
@@ -107,6 +131,28 @@ export function RadarChart({ size, isLoading }: RadarChartProps) {
                 r={9}
                 className="animate-pulse fill-surface-raised"
                 aria-hidden="true"
+              />
+            )
+          })
+        : null}
+
+      {!isLoading
+        ? numbers.map(({ entry, number }) => {
+            const position = positionById.get(entry.id)
+            if (!position) {
+              return null
+            }
+            return (
+              <Blip
+                key={entry.id}
+                entry={entry}
+                position={position}
+                number={number}
+                isDimmed={false}
+                isSelected={selectedEntryId === entry.id}
+                isFocused={false}
+                onSelect={onBlipSelect}
+                onHoverChange={noopHoverChange}
               />
             )
           })
