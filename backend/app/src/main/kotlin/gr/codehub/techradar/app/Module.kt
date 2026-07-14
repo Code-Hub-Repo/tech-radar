@@ -13,6 +13,7 @@ import gr.codehub.techradar.db.repository.EntriesRepository
 import gr.codehub.techradar.db.seed.seed
 import gr.codehub.techradar.feature.auth.authRoutes
 import gr.codehub.techradar.feature.entries.entriesReadRoutes
+import gr.codehub.techradar.feature.entries.entriesWriteRoutes
 import gr.codehub.techradar.usecases.authModule
 import gr.codehub.techradar.usecases.usecaseModule
 import io.ktor.server.application.Application
@@ -49,9 +50,7 @@ fun Application.module(config: AppConfig) {
     routing {
         healthRoute()
         entriesReadRoutes()
+        entriesWriteRoutes()
         authRoutes()
-
-        // Seam (01-07): write (POST/PUT/DELETE) entries routes, wrapped in
-        // authenticate("auth-jwt") { }.
     }
 }
