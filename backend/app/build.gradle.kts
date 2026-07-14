@@ -28,4 +28,13 @@ dependencies {
     implementation(libs.ktor.serialization.kotlinx.json)
     implementation(libs.koin.ktor)
     implementation(libs.logback.classic)
+
+    // SHIP-01 endpoint suite (Testcontainers + real PostgreSQL 18) — test scope only.
+    testImplementation(libs.ktor.server.test.host)
+    testImplementation(kotlin("test-junit5"))
+    testImplementation(platform(libs.testcontainers.bom))
+    testImplementation(libs.testcontainers.postgresql)
+    // bcrypt is only `implementation` inside core_usecases (not `api`), so it isn't compile-visible
+    // here transitively; TestPostgres needs it directly to hash a known test admin password.
+    testImplementation(libs.bcrypt)
 }
