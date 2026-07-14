@@ -1,5 +1,8 @@
-@import "tailwindcss";
+/* Google Fonts import must precede @import "tailwindcss" — Tailwind's import expands into a
+   large generated rule block at build time, which would otherwise push this @import out of
+   the "must precede all other rules" position and risk it being dropped by strict CSS engines. */
 @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Fira+Sans:wght@300;400;500;600;700&display=swap');
+@import "tailwindcss";
 
 @theme {
   /* --color-* matches Tailwind's recognized namespace exactly -> auto-generates
@@ -80,4 +83,23 @@
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* Base page styling — the dark theme applies at the body level so it covers the full
+   viewport (not just wherever a component happens to render), removing the browser's
+   default body margin so the background is full-bleed with no light-colored edge gap. */
+body {
+  margin: 0;
+  background-color: var(--color-background);
+  color: var(--color-foreground);
+  font-family: var(--font-sans);
+}
+
+/* Visible focus ring everywhere, per the design system's "no invisible focus states" rule.
+   Uses :focus-visible (keyboard/programmatic focus only, not mouse clicks) so it never
+   fires as a mouse-click outline. Component-level styles may override with a more specific
+   selector (e.g. the SVG blip's own stroke-based focus treatment). */
+:focus-visible {
+  outline: 2px solid var(--color-ring-focus);
+  outline-offset: 2px;
 }
