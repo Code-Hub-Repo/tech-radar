@@ -24,7 +24,7 @@ data class AppConfig(
         private const val DEFAULT_PORT = 8080
         private const val DEFAULT_CORS_ALLOWED_ORIGINS =
             "https://radar.codehub.gr,http://localhost:5173,http://localhost:4173"
-        private const val TEST_JWT_SECRET = "test-secret-not-for-production"
+        private const val TEST_JWT_SECRET = "test-secret-not-for-production-use"
 
         // The ONLY function in the codebase that reads System.getenv(). Non-secret values fall back
         // to sane dev defaults; the JWT secret has none and hard-fails so a misconfigured deploy

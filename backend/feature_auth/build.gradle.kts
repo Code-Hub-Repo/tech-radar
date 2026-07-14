@@ -6,5 +6,6 @@ dependencies {
     implementation(project(":core_constants"))
 
     implementation(libs.ktor.server.core)
+    implementation(libs.ktor.server.rate.limit)
     implementation(libs.koin.ktor)
 }
