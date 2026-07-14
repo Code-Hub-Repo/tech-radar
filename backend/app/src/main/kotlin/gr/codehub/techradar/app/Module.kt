@@ -2,6 +2,7 @@ package gr.codehub.techradar.app
 
 import gr.codehub.techradar.app.plugins.configureCallLogging
 import gr.codehub.techradar.app.plugins.configureCors
+import gr.codehub.techradar.app.plugins.configureDatabase
 import gr.codehub.techradar.app.plugins.configureSerialization
 import gr.codehub.techradar.app.plugins.configureStatusPages
 import gr.codehub.techradar.app.routes.healthRoute
@@ -15,8 +16,11 @@ fun Application.module(config: AppConfig) {
     configureStatusPages()
     configureCallLogging()
 
-    // Seam (01-04/01-05): configureDatabase(config), runFlywayMigration(config), seed(config) —
-    // called here, before routing, once core_db exists.
+    // Installs Koin (EntriesRepository/HistoryRepository) and runs Flyway migrations against a
+    // real Postgres before any route accepts traffic.
+    configureDatabase(config)
+
+    // Seam (01-05): seed(config) — called here, after configureDatabase, once the seed runner exists.
     // Seam (01-06): configureAuthentication(config), configureRateLimit() — called here, before
     // routing, so authenticate("auth-jwt") { } is available to write routes below.
 
