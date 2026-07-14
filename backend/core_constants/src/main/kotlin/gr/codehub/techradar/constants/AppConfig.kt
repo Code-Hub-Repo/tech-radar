@@ -34,7 +34,7 @@ data class AppConfig(
             databaseUsername = System.getenv("POSTGRES_USER") ?: DEFAULT_DATABASE_USERNAME,
             databasePassword = System.getenv("POSTGRES_PASSWORD") ?: DEFAULT_DATABASE_PASSWORD,
             databasePoolSize = System.getenv("DB_POOL_SIZE")?.toIntOrNull() ?: DEFAULT_DATABASE_POOL_SIZE,
-            jwtSecret = readJwtSecret(),
+            jwtSecret = validateJwtSecret(System.getenv("JWT_SECRET")),
             jwtIssuer = JwtConstants.ISSUER,
             jwtAudience = JwtConstants.AUDIENCE,
             jwtRealm = JwtConstants.REALM,
@@ -68,8 +68,10 @@ data class AppConfig(
             corsAllowedOrigins = parseCorsOrigins(DEFAULT_CORS_ALLOWED_ORIGINS),
         )
 
-        private fun readJwtSecret(): String {
-            val secret = System.getenv("JWT_SECRET") ?: error("JWT_SECRET must be set")
+        // Pure validator — takes the raw value as a parameter rather than reading System.getenv()
+        // itself, so fromEnvironment() remains the only function in the codebase that does.
+        private fun validateJwtSecret(rawValue: String?): String {
+            val secret = rawValue ?: error("JWT_SECRET must be set")
             require(secret.length >= JwtConstants.JWT_SECRET_MIN_LENGTH) {
                 "JWT_SECRET must be at least ${JwtConstants.JWT_SECRET_MIN_LENGTH} characters long"
             }
