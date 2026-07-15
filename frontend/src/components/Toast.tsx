@@ -44,8 +44,15 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     <ToastContext.Provider value={{ showToast }}>
       {children}
       {/* flex-col-reverse + array order oldest->newest puts the newest toast at the bottom
-          (closest to the corner it enters from), older ones pushed upward as more arrive. */}
-      <div className="pointer-events-none fixed bottom-6 right-6 z-[70] flex w-full max-w-sm flex-col-reverse gap-2">
+          (closest to the corner it enters from), older ones pushed upward as more arrive.
+          No w-full here deliberately -- combined with `right-6` on a fixed element, width:100%
+          resolves against the full viewport (not "as wide as the widest toast, capped at
+          max-w-sm"), pushing this container's right edge past the viewport at narrow widths.
+          Omitting width lets the box shrink-to-fit its content up to max-w-sm instead, the
+          standard sizing algorithm for a fixed/absolute box with only one inset (right) set and
+          width left auto -- confirmed live via headless Chrome (page-level scrollWidth match at
+          375px), invisible to jsdom/happy-dom tests. */}
+      <div className="pointer-events-none fixed bottom-6 right-6 z-[70] flex max-w-sm flex-col-reverse gap-2">
         {toasts.map((toast) => {
           const Icon = ICON_BY_TYPE[toast.type]
           return (

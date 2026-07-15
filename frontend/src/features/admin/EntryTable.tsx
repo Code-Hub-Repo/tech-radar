@@ -61,7 +61,13 @@ export function EntryTable({ entries, onEdit, onDeleteRequest }: EntryTableProps
           {rows.length} of {entries.length} entries
         </p>
       </div>
-      <div className="overflow-x-auto rounded-xl border border-border bg-surface">
+      {/* min-w-0 overrides this flex item's default min-width:auto -- without it, a flex column
+          child's automatic minimum size is based on its content's intrinsic width (the table's
+          own min-w-[720px]), which forces this div (and everything up the tree) wider than the
+          viewport at narrow widths instead of letting overflow-x-auto contain the scroll here
+          (the same flexbox "implied minimum size" gotcha EntryListRow.tsx's name span hit in
+          Phase 2 -- confirmed live via headless Chrome, invisible to jsdom/happy-dom tests). */}
+      <div className="min-w-0 overflow-x-auto rounded-xl border border-border bg-surface">
         <table className="w-full min-w-[720px] border-collapse text-left">
           <thead>
             <tr className="border-b border-border">
