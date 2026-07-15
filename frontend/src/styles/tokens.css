@@ -89,6 +89,29 @@
   border: 0;
 }
 
+/* Skip-link reveal: pairs with .sr-only (className="sr-only sr-only-focusable") to restore
+   normal, visible layout on :focus-visible only -- opt-in per element via this second class, so
+   .sr-only's other consumers (e.g. FilterBar's permanently-mounted aria-live result count,
+   never itself focusable) are completely unaffected. First consumer: SkipLink.tsx's "Skip to
+   list view" link -- the global :focus-visible accent ring below applies automatically on top,
+   this rule only handles the hidden->visible layout toggle. Higher specificity than .sr-only
+   alone (two classes + a pseudo-class vs. one class) guarantees this wins on focus. */
+.sr-only-focusable:focus-visible {
+  position: static;
+  display: inline-block;
+  width: auto;
+  height: auto;
+  padding: var(--space-sm) var(--space-md);
+  margin: 0;
+  overflow: visible;
+  clip: auto;
+  white-space: normal;
+  background-color: var(--color-accent);
+  color: var(--color-on-accent);
+  border-radius: 8px;
+  font-weight: 600;
+}
+
 /* Global reduced-motion reset — blankets every animation and transition by default.
    This neutralizes the skeleton shimmer, BlipTooltip translateY, and the radar-to-panel
    width transition without each consumer needing its own media query. The isNew drop-shadow
