@@ -32,6 +32,15 @@ describe('DetailPanel', () => {
     expect(heading).toHaveFocus()
   })
 
+  it('focuses the heading with preventScroll so opening the panel never scrolls the page', () => {
+    const focusSpy = vi.spyOn(HTMLElement.prototype, 'focus')
+
+    render(<DetailPanel entry={makeEntry()} isOpen onClose={() => {}} presentation="panel" />)
+
+    expect(focusSpy).toHaveBeenCalledWith({ preventScroll: true })
+    focusSpy.mockRestore()
+  })
+
   it('calls onClose when Escape is pressed', () => {
     const onClose = vi.fn()
     render(<DetailPanel entry={makeEntry()} isOpen onClose={onClose} presentation="panel" />)

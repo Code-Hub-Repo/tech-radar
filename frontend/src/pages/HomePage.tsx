@@ -86,7 +86,9 @@ export function HomePage() {
     // Deterministic regardless of how the panel was opened (in-app click vs. a shared deep
     // link) -- explicit param removal via replace:true, not a history-back navigation.
     setSearchParams(paramsFromPatch(searchParams, { selectedEntryId: null }), { replace: true })
-    triggerRef.current?.focus()
+    // preventScroll: true for the same reason as DetailPanel's own open-focus -- returning focus
+    // to the trigger row/blip should never itself cause a scroll jump.
+    triggerRef.current?.focus({ preventScroll: true })
   }
 
   function handleFilterChange(patch: Partial<FilterState>) {
@@ -121,42 +123,77 @@ export function HomePage() {
                 onChange={handleFilterChange}
               />
             </div>
-            {/* Radar + docked detail panel. <768px: compact radar (max-w-[260px], matches
+            {/* Radar/Legend/list share one left column; the detail panel is a second, sticky
+                column beside it (1024px+ only) so it stays in view while the left column -- the
+                list especially -- scrolls underneath it, instead of scrolling away with its own
+                now-distant trigger row. <768px: compact radar (max-w-[260px], matches
                 COMPACT_RADAR_SIZE), full-width list below (order unchanged at every
                 breakpoint -- see COMPACT_RADAR_SIZE's comment). 768-1023px: full-width radar
                 (max-w-[760px] cap rarely engages at this range), still stacked, sheet detail.
-                1024px+: radar+panel share this flex row (lg:flex-row); the panel column only
-                exists while an entry is selected (unmounted, not a reserved empty gutter).
+                1024px+: the two columns share this flex row (lg:flex-row); the panel column
+                only exists while an entry is selected (unmounted, not a reserved empty gutter).
                 DetailPanel's own sheet branch (Task 2) uses fixed positioning that escapes this
-                wrapper's box entirely, so the wrapper's width classes only matter for the
+                wrapper's box entirely, so the wrapper's width/sticky classes only matter for the
                 docked 'panel' presentation at lg+. */}
             <div className="mb-8 flex flex-col gap-8 lg:flex-row lg:items-start">
-              <div className="relative mx-auto w-full max-w-[260px] md:max-w-[760px] lg:mx-0 lg:flex-1">
-                <RadarChart
-                  entries={isPending ? [] : entries}
-                  filterState={filterState}
-                  selectedEntryId={filterState.selectedEntryId}
-                  size={radarSize}
-                  isLoading={isPending}
-                  onBlipSelect={handleSelectEntry}
-                />
-                {/* Radar keeps every blip rendered, dimmed rather than removed -- this banner is
-                    a HomePage-level overlay, not RadarChart-owned state (State Matrix: filtered-
-                    to-zero appears "in BOTH surfaces", each with its own copy of the message). */}
-                {isFilteredToZero ? (
-                  <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6">
-                    <div className="pointer-events-auto w-full max-w-sm">
-                      <EmptyState
-                        heading={FILTERED_TO_ZERO_HEADING}
-                        body={FILTERED_TO_ZERO_BODY}
-                        action={{ label: CLEAR_FILTERS_LABEL, onClick: handleClearFilters }}
-                      />
+              <div className="flex w-full flex-col gap-8 lg:flex-1">
+                <div className="relative mx-auto w-full max-w-[260px] md:max-w-[760px] lg:mx-0">
+                  <RadarChart
+                    entries={isPending ? [] : entries}
+                    filterState={filterState}
+                    selectedEntryId={filterState.selectedEntryId}
+                    size={radarSize}
+                    isLoading={isPending}
+                    onBlipSelect={handleSelectEntry}
+                  />
+                  {/* Radar keeps every blip rendered, dimmed rather than removed -- this banner
+                      is a HomePage-level overlay, not RadarChart-owned state (State Matrix:
+                      filtered-to-zero appears "in BOTH surfaces", each with its own copy of the
+                      message). */}
+                  {isFilteredToZero ? (
+                    <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6">
+                      <div className="pointer-events-auto w-full max-w-sm">
+                        <EmptyState
+                          heading={FILTERED_TO_ZERO_HEADING}
+                          body={FILTERED_TO_ZERO_BODY}
+                          action={{ label: CLEAR_FILTERS_LABEL, onClick: handleClearFilters }}
+                        />
+                      </div>
                     </div>
-                  </div>
-                ) : null}
+                  ) : null}
+                </div>
+                <Legend />
+                {isPending ? (
+                  <EntryListView
+                    entries={[]}
+                    filterState={filterState}
+                    selectedEntryId={filterState.selectedEntryId}
+                    isLoading
+                    onEntrySelect={handleSelectEntry}
+                  />
+                ) : entries.length === 0 ? (
+                  <EmptyState
+                    heading="No entries yet"
+                    body="Check back soon — the radar is updated as Code.Hub evaluates new technologies."
+                  />
+                ) : isFilteredToZero ? (
+                  <EmptyState
+                    heading={FILTERED_TO_ZERO_HEADING}
+                    body={FILTERED_TO_ZERO_BODY}
+                    action={{ label: CLEAR_FILTERS_LABEL, onClick: handleClearFilters }}
+                  />
+                ) : (
+                  <EntryListView
+                    entries={entries}
+                    filterState={filterState}
+                    selectedEntryId={filterState.selectedEntryId}
+                    isLoading={false}
+                    onEntrySelect={handleSelectEntry}
+                  />
+                )}
               </div>
               {selectedEntry ? (
-                <div className="w-full lg:w-[380px] lg:shrink-0">
+                <div className="w-full lg:sticky lg:top-8 lg:w-[380px] lg:max-h-[calc(100vh-4rem)] lg:shrink-0 lg:overflow-y-auto">
                   <DetailPanel
                     entry={selectedEntry}
                     isOpen
@@ -166,37 +203,6 @@ export function HomePage() {
                 </div>
               ) : null}
             </div>
-            <div className="mb-8">
-              <Legend />
-            </div>
-            {isPending ? (
-              <EntryListView
-                entries={[]}
-                filterState={filterState}
-                selectedEntryId={filterState.selectedEntryId}
-                isLoading
-                onEntrySelect={handleSelectEntry}
-              />
-            ) : entries.length === 0 ? (
-              <EmptyState
-                heading="No entries yet"
-                body="Check back soon — the radar is updated as Code.Hub evaluates new technologies."
-              />
-            ) : isFilteredToZero ? (
-              <EmptyState
-                heading={FILTERED_TO_ZERO_HEADING}
-                body={FILTERED_TO_ZERO_BODY}
-                action={{ label: CLEAR_FILTERS_LABEL, onClick: handleClearFilters }}
-              />
-            ) : (
-              <EntryListView
-                entries={entries}
-                filterState={filterState}
-                selectedEntryId={filterState.selectedEntryId}
-                isLoading={false}
-                onEntrySelect={handleSelectEntry}
-              />
-            )}
           </>
         )}
       </main>

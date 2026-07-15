@@ -54,9 +54,13 @@ export function DetailPanel({ entry, isOpen, onClose, presentation }: DetailPane
   // Open -> move focus to the heading (tabIndex=-1, programmatic, not in normal tab order).
   // Re-fires if the selected entry changes while already open (e.g. a different blip is
   // activated without closing first), so a screen-reader user is told content changed.
+  // preventScroll: true is load-bearing -- without it the browser's default focus() behavior
+  // scrolls the newly-focused heading into view, which yanks the whole page to the top when a
+  // list row far down the page is clicked (the docked panel already sits in the viewport, and
+  // the mobile/tablet sheet is fixed-positioned -- neither needs a scroll to become visible).
   useEffect(() => {
     if (isOpen) {
-      headingRef.current?.focus()
+      headingRef.current?.focus({ preventScroll: true })
     }
   }, [isOpen, entry?.id])
 
