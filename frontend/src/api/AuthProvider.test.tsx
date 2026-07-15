@@ -12,7 +12,7 @@ function AuthConsumer() {
     <div>
       <span data-testid="auth-state">{auth.isAuthenticated ? 'authenticated' : 'anonymous'}</span>
       <span data-testid="auth-token">{auth.token ?? 'none'}</span>
-      <button type="button" onClick={() => void auth.login('admin', 'codehub2026')}>
+      <button type="button" onClick={() => void auth.login('admin', 'test-password')}>
         login
       </button>
       <button type="button" onClick={() => auth.logout()}>

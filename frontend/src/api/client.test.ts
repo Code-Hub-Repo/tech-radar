@@ -90,15 +90,15 @@ describe('login', () => {
       json: () => Promise.resolve({ token: 'jwt-value', expiresAt: '2026-07-15T18:00:00Z' }),
     })
 
-    await expect(login('admin', 'codehub2026')).resolves.toEqual({
+    await expect(login('admin', 'test-password')).resolves.toEqual({
       token: 'jwt-value',
       expiresAt: '2026-07-15T18:00:00Z',
     })
 
     const [calledUrl, init] = fetchMock.mock.calls[0] as [string, RequestInit]
-    expect(calledUrl).not.toContain('codehub2026')
+    expect(calledUrl).not.toContain('test-password')
     expect(init.method).toBe('POST')
-    expect(JSON.parse(init.body as string)).toEqual({ username: 'admin', password: 'codehub2026' })
+    expect(JSON.parse(init.body as string)).toEqual({ username: 'admin', password: 'test-password' })
   })
 
   it('throws an ApiError with the envelope message on a 401 response', async () => {

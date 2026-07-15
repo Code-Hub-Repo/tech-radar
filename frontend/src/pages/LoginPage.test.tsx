@@ -37,7 +37,7 @@ describe('LoginPage', () => {
 
     expect(screen.getByRole('button', { name: 'Sign in' })).toBeDisabled()
 
-    fillCredentials('admin', 'codehub2026')
+    fillCredentials('admin', 'test-password')
 
     expect(screen.getByRole('button', { name: 'Sign in' })).toBeEnabled()
   })
@@ -59,10 +59,10 @@ describe('LoginPage', () => {
     const login = vi.fn().mockResolvedValue(undefined)
     renderLoginPage(login)
 
-    fillCredentials('admin', 'codehub2026')
+    fillCredentials('admin', 'test-password')
     fireEvent.click(screen.getByRole('button', { name: 'Sign in' }))
 
-    expect(login).toHaveBeenCalledWith('admin', 'codehub2026')
+    expect(login).toHaveBeenCalledWith('admin', 'test-password')
     await waitFor(() => expect(screen.getByText('Admin page reached')).toBeInTheDocument())
   })
 
@@ -70,7 +70,7 @@ describe('LoginPage', () => {
     const login = vi.fn().mockResolvedValue(undefined)
     renderLoginPage(login, '/admin/login?returnTo=%2Fadmin%2Fentries%2F7')
 
-    fillCredentials('admin', 'codehub2026')
+    fillCredentials('admin', 'test-password')
     fireEvent.click(screen.getByRole('button', { name: 'Sign in' }))
 
     await waitFor(() => expect(screen.getByText('Deep link target reached')).toBeInTheDocument())
@@ -80,7 +80,7 @@ describe('LoginPage', () => {
     const login = vi.fn().mockResolvedValue(undefined)
     renderLoginPage(login, '/admin/login?returnTo=https%3A%2F%2Fevil.example')
 
-    fillCredentials('admin', 'codehub2026')
+    fillCredentials('admin', 'test-password')
     fireEvent.click(screen.getByRole('button', { name: 'Sign in' }))
 
     await waitFor(() => expect(screen.getByText('Admin page reached')).toBeInTheDocument())
@@ -111,7 +111,7 @@ describe('LoginPage', () => {
     const login = vi.fn().mockRejectedValue(new TypeError('Failed to fetch'))
     renderLoginPage(login)
 
-    fillCredentials('admin', 'codehub2026')
+    fillCredentials('admin', 'test-password')
     fireEvent.click(screen.getByRole('button', { name: 'Sign in' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Something went wrong. Please try again.')
@@ -127,7 +127,7 @@ describe('LoginPage', () => {
     )
     renderLoginPage(login)
 
-    fillCredentials('admin', 'codehub2026')
+    fillCredentials('admin', 'test-password')
     fireEvent.click(screen.getByRole('button', { name: 'Sign in' }))
 
     expect(screen.getByRole('button', { name: 'Sign in' })).toHaveAttribute('aria-busy', 'true')
