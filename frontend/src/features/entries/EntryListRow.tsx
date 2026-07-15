@@ -39,7 +39,7 @@ export function EntryListRow({ entry, number, isSelected = false, onSelect }: En
         <span className="w-8 shrink-0 text-right font-mono text-[14px] leading-[1.4] tabular-nums text-muted">
           {number}
         </span>
-        <span className="flex-1 font-sans text-[16px] font-semibold leading-[1.5] text-foreground">
+        <span className="min-w-0 flex-1 truncate font-sans text-[16px] font-semibold leading-[1.5] text-foreground">
           {entry.name}
         </span>
         {entry.isNew ? (

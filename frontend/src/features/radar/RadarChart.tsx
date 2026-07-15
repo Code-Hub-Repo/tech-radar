@@ -29,6 +29,20 @@ interface RadarChartProps {
 // diagonal corner gap a circle inscribed in a square viewBox naturally leaves.
 const LABEL_RADIUS_OFFSET = 16
 
+// Below this `size`, a multi-word quadrant label is wrapped onto two lines instead of one (see
+// wrapLabelLines below) -- at the compact 260 mobile size, "Languages & Frameworks" rendered as
+// a single line extends past the SVG's own painted bounds (confirmed via headless-Chrome
+// getBoundingClientRect measurement: right edge landed ~8px past the 375px viewport), which
+// `overflow: visible` (below) lets escape the SVG box uncontained (BRND-02 gap-closure fix).
+// 300 sits well above COMPACT_RADAR_SIZE (260, HomePage.tsx) and well below RADAR_SIZE (640), so
+// the 768/1024/1440 single-line rendering is untouched -- this only ever engages at the one
+// compact size that showed the defect.
+const COMPACT_LABEL_WRAP_THRESHOLD = 300
+
+// Vertical gap between wrapped label lines -- the UI-SPEC Label role's own line-height (14px
+// font-size * 1.4), applied only when wrapLabelLines() below returns two lines.
+const LABEL_LINE_HEIGHT = 14 * 1.4
+
 // Generic, data-independent (quadrant, ring) placeholder cells for the loading skeleton --
 // spans all 4 quadrants and all 4 ring bands, deliberately not derived from any real entry.
 const SKELETON_PLACEHOLDERS: { quadrantIndex: number; ringIndex: number }[] = [
@@ -49,6 +63,30 @@ function polarToCartesian(center: number, radius: number, angle: number): { x: n
     x: center + radius * Math.sin(angle),
     y: center - radius * Math.cos(angle),
   }
+}
+
+// Splits a label into up to two lines by word count, choosing whichever word boundary minimizes
+// the longer of the two resulting lines (a balanced wrap, e.g. "Languages &" / "Frameworks"
+// rather than a lopsided "Languages" / "& Frameworks"). Single-word labels (Tools, Platforms,
+// Techniques) pass through unchanged as one line -- this only ever affects a label that actually
+// contains more than one word.
+function wrapLabelLines(label: string): string[] {
+  const words = label.split(' ')
+  if (words.length <= 1) {
+    return [label]
+  }
+  let bestSplit = 1
+  let bestMax = Infinity
+  for (let split = 1; split < words.length; split++) {
+    const line1 = words.slice(0, split).join(' ')
+    const line2 = words.slice(split).join(' ')
+    const longest = Math.max(line1.length, line2.length)
+    if (longest < bestMax) {
+      bestMax = longest
+      bestSplit = split
+    }
+  }
+  return [words.slice(0, bestSplit).join(' '), words.slice(bestSplit).join(' ')]
 }
 
 // Renders the radar's static chrome, a positioned+numbered+ring-colored <Blip> per entry (in
@@ -111,17 +149,37 @@ export function RadarChart({
       {QUADRANT_ORDER.map((quadrant, quadrantIndex) => {
         const midAngle = quadrantIndex * (Math.PI / 2) + Math.PI / 4
         const { x, y } = polarToCartesian(outerRadius, outerRadius + LABEL_RADIUS_OFFSET, midAngle)
+        const lines =
+          size <= COMPACT_LABEL_WRAP_THRESHOLD ? wrapLabelLines(quadrantLabel[quadrant]) : [quadrantLabel[quadrant]]
+        if (lines.length === 1) {
+          return (
+            <text
+              key={`label-${quadrant}`}
+              x={x}
+              y={y}
+              textAnchor="middle"
+              dominantBaseline="middle"
+              className="fill-muted font-mono text-[14px]"
+            >
+              {lines[0]}
+            </text>
+          )
+        }
         return (
-          <text
-            key={`label-${quadrant}`}
-            x={x}
-            y={y}
-            textAnchor="middle"
-            dominantBaseline="middle"
-            className="fill-muted font-mono text-[14px]"
-          >
-            {quadrantLabel[quadrant]}
-          </text>
+          <g key={`label-${quadrant}`}>
+            {lines.map((line, lineIndex) => (
+              <text
+                key={lineIndex}
+                x={x}
+                y={y + (lineIndex - (lines.length - 1) / 2) * LABEL_LINE_HEIGHT}
+                textAnchor="middle"
+                dominantBaseline="middle"
+                className="fill-muted font-mono text-[14px]"
+              >
+                {line}
+              </text>
+            ))}
+          </g>
         )
       })}
 

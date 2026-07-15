@@ -135,6 +135,13 @@ body {
   background-color: var(--color-background);
   color: var(--color-foreground);
   font-family: var(--font-sans);
+  /* Defensive backstop (BRND-02 gap-closure) -- applied in addition to, never instead of, the
+     actual overflow-source fixes (RadarChart's compact-mode label wrap, EntryListRow's
+     min-w-0/truncate). Guarantees no horizontal scrollbar/clipping can reappear even from a
+     future overflow: visible element, without hiding anything those fixes don't already keep
+     inside the viewport. Does not affect DetailPanel's `fixed` mobile sheet/scrim -- overflow on
+     body does not establish a containing block for position: fixed. */
+  overflow-x: hidden;
 }
 
 /* Visible focus ring everywhere, per the design system's "no invisible focus states" rule.
