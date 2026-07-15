@@ -1,13 +1,13 @@
-// Full entry view: name, ring, quadrant, description. Desktop docked panel (this wave) is NOT
-// focus-trapped -- the page stays operable alongside it (UI-SPEC Interaction Specs -> Focus
-// trapping). 'sheet' (mobile bottom sheet + trap) is stubbed to render identically to 'panel'
-// for now; 02-08 adds the real focus trap + slide-up sheet treatment. Movement/isNew text is a
-// clean seam left for 02-07.
+// Full entry view: name, ring, quadrant, isNew/movement state, description. Desktop docked
+// panel (this wave) is NOT focus-trapped -- the page stays operable alongside it (UI-SPEC
+// Interaction Specs -> Focus trapping). 'sheet' (mobile bottom sheet + trap) is stubbed to
+// render identically to 'panel' for now; 02-08 adds the real focus trap + slide-up sheet
+// treatment.
 import { useEffect, useRef } from 'react'
 import type { KeyboardEvent } from 'react'
 import { X } from 'lucide-react'
 import type { Entry } from '../../api/types'
-import { ringLabel, quadrantLabel } from '../../api/types'
+import { ringLabel, quadrantLabel, movementLabel } from '../../api/types'
 
 interface DetailPanelProps {
   entry: Entry | null
@@ -70,6 +70,14 @@ export function DetailPanel({ entry, isOpen, onClose, presentation }: DetailPane
         <span>{ringLabel[entry.ring]}</span>
         <span aria-hidden="true">·</span>
         <span>{quadrantLabel[entry.quadrant]}</span>
+        {entry.isNew || entry.movement !== 'NONE' ? (
+          <>
+            <span aria-hidden="true">·</span>
+            <span className="font-semibold text-accent">
+              {entry.isNew ? 'New' : movementLabel[entry.movement]}
+            </span>
+          </>
+        ) : null}
       </div>
       <p className="text-[16px] leading-[1.5] text-foreground">{entry.description}</p>
     </div>

@@ -1,5 +1,6 @@
+import { Sparkles, TrendingDown, TrendingUp } from 'lucide-react'
 import type { Entry, Ring } from '../../api/types'
-import { ringLabel } from '../../api/types'
+import { ringLabel, movementLabel } from '../../api/types'
 
 interface EntryListRowProps {
   entry: Entry
@@ -21,10 +22,10 @@ const RING_BADGE_CLASS: Record<Ring, string> = {
   HOLD: 'bg-ring-hold',
 }
 
-// One entry row: blip number + name + ring badge, as a real activatable <button> so click and
-// native Enter/Space both call onSelect (RADR-06 cross-reference + keyboard parity with the
-// radar's own blip buttons). Movement/isNew text is added in 02-07; isDimmed rendering logic
-// arrives with real filtering in 02-06.
+// One entry row: blip number + name + isNew/movement state + ring badge, as a real activatable
+// <button> so click and native Enter/Space both call onSelect (RADR-06 cross-reference +
+// keyboard parity with the radar's own blip buttons). isDimmed rendering logic arrives with
+// real filtering in 02-06.
 export function EntryListRow({ entry, number, isSelected = false, onSelect }: EntryListRowProps) {
   return (
     <li className="border-b border-border last:border-b-0">
@@ -41,6 +42,21 @@ export function EntryListRow({ entry, number, isSelected = false, onSelect }: En
         <span className="flex-1 font-sans text-[16px] font-semibold leading-[1.5] text-foreground">
           {entry.name}
         </span>
+        {entry.isNew ? (
+          <span className="flex shrink-0 items-center gap-1 font-mono text-[14px] font-semibold leading-[1.4] text-accent">
+            <Sparkles aria-hidden="true" size={14} />
+            New
+          </span>
+        ) : entry.movement !== 'NONE' ? (
+          <span className="flex shrink-0 items-center gap-1 font-mono text-[14px] font-semibold leading-[1.4] text-muted">
+            {entry.movement === 'IN' ? (
+              <TrendingUp aria-hidden="true" size={14} />
+            ) : (
+              <TrendingDown aria-hidden="true" size={14} />
+            )}
+            {movementLabel[entry.movement]}
+          </span>
+        ) : null}
         <span
           className={`rounded-full px-3 py-1 font-mono text-[14px] font-semibold leading-[1.4] text-on-accent ${RING_BADGE_CLASS[entry.ring]}`}
         >
