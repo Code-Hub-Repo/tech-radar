@@ -50,6 +50,25 @@
      CSS variable only, used via filter: drop-shadow(var(--glow-accent)) for the isNew blip state. */
   --glow-accent: 0 0 12px rgba(249, 115, 22, 0.35);
 
+  /* --animate-* generates the `animate-blip-pulse` utility (RADR-04's isNew looping pulse ring,
+     locked to 2s ease-in-out by the UI-SPEC Animation Spec — no built-in Tailwind animation
+     matches that exact timing). The paired @keyframes block is nested here, mirroring how
+     Tailwind's own default theme (node_modules/tailwindcss/theme.css) declares --animate-ping's
+     @keyframes ping inside its own @theme block. Blip.tsx applies this class only when
+     !prefersReducedMotion; the ring's starting r (9px) matches Blip.tsx's own VISIBLE_RADIUS. */
+  --animate-blip-pulse: blip-pulse 2s ease-in-out infinite;
+
+  @keyframes blip-pulse {
+    0% {
+      r: 9px;
+      opacity: 0.6;
+    }
+    100% {
+      r: 18px;
+      opacity: 0;
+    }
+  }
+
   /* --shadow-* IS a recognized namespace -> bonus shadow-sm/shadow-md/shadow-lg utilities */
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
   --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.45);
