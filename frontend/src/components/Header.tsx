@@ -5,8 +5,8 @@
 // passing search state through props. onOpenIntro is the one exception -- the "How to read
 // this" trigger reopens HomePage's IntroBanner, whose open/dismissed state is local UI state
 // (not URL-shareable), so it's threaded down as a plain callback instead.
-import { Info } from 'lucide-react'
-import { useSearchParams } from 'react-router'
+import { Info, Lock } from 'lucide-react'
+import { Link, useSearchParams } from 'react-router'
 import { SearchInput } from '../features/entries/SearchInput'
 import { filterStateFromParams, paramsFromPatch } from '../lib/urlParams'
 
@@ -67,6 +67,16 @@ export function Header({ onOpenIntro }: HeaderProps) {
           How to read this
         </button>
         <SearchInput value={query} onChange={handleQueryChange} debounceMs={SEARCH_DEBOUNCE_MS} />
+        {/* DESIGN.md §5's public-radar page pattern names an admin link in the header --
+            RequireAuth (features/admin) sends a visitor straight to /admin/login if they aren't
+            already signed in, so this is a plain route link, not an auth check. */}
+        <Link
+          to="/admin"
+          className="flex cursor-pointer items-center gap-1.5 rounded-lg px-3 py-2 font-mono text-[13px] font-semibold text-muted transition-colors duration-200 hover:bg-surface-raised hover:text-foreground"
+        >
+          <Lock aria-hidden="true" size={14} />
+          Admin
+        </Link>
       </div>
     </header>
   )
