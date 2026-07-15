@@ -2,14 +2,21 @@
 // param via useSearchParams -- no props needed (UI-SPEC Component Inventory: "(none -- composes
 // SearchInput internally)"). HomePage independently reads the same URL for the rest of
 // FilterState; Header and HomePage share the URL as their one source of truth instead of
-// passing search state through props.
+// passing search state through props. onOpenIntro is the one exception -- the "How to read
+// this" trigger reopens HomePage's IntroBanner, whose open/dismissed state is local UI state
+// (not URL-shareable), so it's threaded down as a plain callback instead.
+import { Info } from 'lucide-react'
 import { useSearchParams } from 'react-router'
 import { SearchInput } from '../features/entries/SearchInput'
 import { filterStateFromParams, paramsFromPatch } from '../lib/urlParams'
 
 const SEARCH_DEBOUNCE_MS = 250
 
-export function Header() {
+interface HeaderProps {
+  onOpenIntro: () => void
+}
+
+export function Header({ onOpenIntro }: HeaderProps) {
   const [searchParams, setSearchParams] = useSearchParams()
   const query = filterStateFromParams(searchParams).query
 
@@ -51,6 +58,14 @@ export function Header() {
         </p>
       </div>
       <div className="flex items-center gap-4">
+        <button
+          type="button"
+          onClick={onOpenIntro}
+          className="flex cursor-pointer items-center gap-1.5 rounded-lg px-3 py-2 font-mono text-[13px] font-semibold text-muted transition-colors duration-200 hover:bg-surface-raised hover:text-foreground"
+        >
+          <Info aria-hidden="true" size={14} />
+          How to read this
+        </button>
         <SearchInput value={query} onChange={handleQueryChange} debounceMs={SEARCH_DEBOUNCE_MS} />
       </div>
     </header>

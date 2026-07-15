@@ -1,10 +1,11 @@
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import { useSearchParams } from 'react-router'
 import { useEntries } from '../api/hooks'
 import type { FilterState } from '../api/types'
 import { EmptyState } from '../components/EmptyState'
 import { ErrorState } from '../components/ErrorState'
 import { Header } from '../components/Header'
+import { IntroBanner } from '../components/IntroBanner'
 import { SkipLink } from '../components/SkipLink'
 import { DetailPanel } from '../features/entries/DetailPanel'
 import { EntryListView } from '../features/entries/EntryListView'
@@ -12,6 +13,7 @@ import { FilterBar } from '../features/entries/FilterBar'
 import { Legend } from '../features/radar/Legend'
 import { RadarChart } from '../features/radar/RadarChart'
 import { matchedIds } from '../lib/filtering'
+import { isIntroDismissed, setIntroDismissed } from '../lib/introDismissal'
 import { useMediaQuery } from '../lib/useMediaQuery'
 import { filterStateFromParams, paramsFromPatch } from '../lib/urlParams'
 
@@ -47,6 +49,15 @@ export function HomePage() {
   // Tracks the exact element that opened the panel (blip or list row) so focus returns to it
   // on close — never a "first blip" fallback (UI-SPEC Interaction Specs -> Close detail panel).
   const triggerRef = useRef<HTMLElement | null>(null)
+  // Auto-open on a visitor's first-ever load, suppressed thereafter via localStorage -- never a
+  // URL param, since a shared/bookmarked link showing the intro would be surprising and isn't
+  // the point (unlike selection/filters, which ARE meant to be shareable).
+  const [isIntroOpen, setIsIntroOpen] = useState(() => !isIntroDismissed())
+
+  function handleDismissIntro() {
+    setIsIntroOpen(false)
+    setIntroDismissed()
+  }
   // <768px: list primary, compact radar, sheet detail. 768-1023px: full-width radar, sheet
   // detail (no room yet for a docked 60/40 split). 1024px+: docked panel, radar/panel split.
   const isTabletUp = useMediaQuery(TABLET_UP_QUERY)
@@ -90,8 +101,9 @@ export function HomePage() {
   return (
     <div className="min-h-screen">
       <SkipLink />
-      <Header />
+      <Header onOpenIntro={() => setIsIntroOpen(true)} />
       <main className="mx-auto w-full max-w-7xl px-6 py-8">
+        <IntroBanner isOpen={isIntroOpen} onDismiss={handleDismissIntro} />
         {isError ? (
           // Single shared ErrorState spans both the radar and list content area — one fetch
           // failure means both surfaces are down together (State Matrix: never duplicated).
