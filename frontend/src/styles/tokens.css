@@ -17,6 +17,10 @@
   --color-accent-hover: #ea580c;
   --color-on-accent: #1a1a1a;
   --color-destructive: #ef4444;
+  /* Hover step for the destructive Button variant -- one shade darker, same darkening amount
+     applied to --color-accent-hover, so every button's hover interaction (MASTER.md's
+     "transition: background-color 200ms ease" base spec) behaves consistently. */
+  --color-destructive-hover: #dc2626;
   --color-success: #22c55e;
   --color-ring-focus: #f97316;
 
