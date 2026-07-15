@@ -32,11 +32,32 @@ interface BlipProps {
   /** Renders the permanent accent-stroke halo below — distinct from the transient global
       :focus-visible outline on the button itself. Driven by one selectedEntryId (02-05). */
   isSelected?: boolean
+  /** True while this blip is hovered/focused (RadarChart's hoveredEntryId). Scales the dot up and
+      intensifies its glow — a "lift" affordance distinct from the tooltip it also triggers. */
+  isHovered?: boolean
+  /** Per-blip entrance-animation delay in ms (DOM index * stagger) for the mount sweep-in. */
+  enterDelayMs?: number
   /** Accepted but inert — no roving-focus visual is needed (native tab order, see Blip.tsx's
       own button; RADR-02's read_first). */
   isFocused?: boolean
   onSelect: (id: number) => void
   onHoverChange: (isHovering: boolean) => void
+}
+
+// Stronger glow drop-shadow applied when a blip is hovered or selected (on top of the always-on
+// subtle --glow-ring-* base) — keyed to each ring's own color so the lift reads as "this dot lit up".
+const RING_GLOW_STRONG: Record<Ring, string> = {
+  ADOPT: 'drop-shadow(0 0 10px rgba(249, 115, 22, 0.9))',
+  TRIAL: 'drop-shadow(0 0 10px rgba(56, 189, 248, 0.9))',
+  ASSESS: 'drop-shadow(0 0 10px rgba(167, 139, 250, 0.9))',
+  HOLD: 'drop-shadow(0 0 10px rgba(156, 163, 175, 0.85))',
+}
+
+const RING_GLOW_BASE: Record<Ring, string> = {
+  ADOPT: 'drop-shadow(var(--glow-ring-adopt))',
+  TRIAL: 'drop-shadow(var(--glow-ring-trial))',
+  ASSESS: 'drop-shadow(var(--glow-ring-assess))',
+  HOLD: 'drop-shadow(var(--glow-ring-hold))',
 }
 
 const RING_STROKE_CLASS: Record<Ring, string> = {
@@ -77,11 +98,22 @@ export function Blip({
   number,
   isDimmed = false,
   isSelected = false,
+  isHovered = false,
+  enterDelayMs = 0,
   onSelect,
   onHoverChange,
 }: BlipProps) {
   const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const prefersReducedMotion = usePrefersReducedMotion()
+
+  // Lift state: hovered or selected blips scale up and glow brighter. Dimmed (filtered-out) blips
+  // never lift, so the active set always visually wins.
+  const isLifted = (isHovered || isSelected) && !isDimmed
+  // Rest glow: isNew keeps its accent (orange) glow per RADR-04 ("isNew entries render with an
+  // accent glow"); every other blip gets a subtle glow in its own ring color so no dot is ever
+  // flat. Hover/selection intensifies to the strong ring glow regardless of isNew.
+  const restGlow = entry.isNew ? 'drop-shadow(var(--glow-accent))' : RING_GLOW_BASE[entry.ring]
+  const glow = isLifted ? RING_GLOW_STRONG[entry.ring] : restGlow
 
   function scheduleHoverShow() {
     hoverTimeoutRef.current = setTimeout(() => {
@@ -151,18 +183,26 @@ export function Blip({
     <g transform={`translate(${position.x}, ${position.y})`}>
       {/* Decorative three-layer visual -- hidden from the a11y tree and non-interactive; the
           <button> below carries the sole accessible name and all interaction. */}
-      <g aria-hidden="true" pointerEvents="none">
-        {/* Selected-state halo -- a permanent accent stroke ring, distinct from the transient
-            global :focus-visible outline the button itself picks up on keyboard focus. */}
-        {isSelected ? (
-          <circle r={VISIBLE_RADIUS + 5} fill="none" className="stroke-accent" strokeWidth={2} />
-        ) : null}
-        {/* Layers 1-3 (outline/fill/number) share one wrapper so the isNew static glow -- a
-            filter, not an animation/transition, so tokens.css's global reduced-motion reset does
-            NOT suppress it -- applies to the whole visible dot at once. Gated on entry.isNew
-            alone, independent of prefersReducedMotion (RADR-04: the glow always stays; only the
-            pulse below is removed). */}
-        <g style={entry.isNew ? { filter: 'drop-shadow(var(--glow-accent))' } : undefined}>
+      {/* Entrance group: staggered scale+fade-in on mount (animate-blip-enter, per-blip delay).
+          transform-box/origin come from .blip-enter-anim so it pivots on the blip's own center.
+          Split from the hover-scale group below so the entrance `animation` and the hover
+          `transition` never contend for the same transform property. Suppressed under
+          prefers-reduced-motion by tokens.css's global reset. */}
+      <g
+        className="blip-enter-anim animate-blip-enter"
+        style={{ animationDelay: `${enterDelayMs}ms` }}
+        aria-hidden="true"
+        pointerEvents="none"
+      >
+        {/* Hover/selected lift: scales the dot up and swaps to the stronger ring glow (transition
+            on .blip-hover-scale). The glow filter is always present (subtle at rest), so a blip is
+            never fully flat -- it sits in a soft pool of its own ring color. */}
+        <g className="blip-hover-scale" style={{ transform: isLifted ? 'scale(1.24)' : 'scale(1)', filter: glow }}>
+          {/* Selected-state halo -- a permanent accent stroke ring, distinct from the transient
+              global :focus-visible outline the button itself picks up on keyboard focus. */}
+          {isSelected ? (
+            <circle r={VISIBLE_RADIUS + 5} fill="none" className="stroke-accent" strokeWidth={2} />
+          ) : null}
           {/* Layer 1: outline -- opacity always 1.0, never dimmed (WCAG shape-contrast floor). */}
           <circle
             r={VISIBLE_RADIUS}
@@ -170,11 +210,13 @@ export function Blip({
             className={RING_STROKE_CLASS[entry.ring]}
             strokeWidth={1.5}
           />
-          {/* Layer 2: fill -- opacity 1.0 normal / 0.35 dimmed (EXPL-03's locked value), animated
-              200ms ease per the Animation Spec ("Blip dim (filter match/non-match)"). */}
+          {/* Layer 2: fill -- a per-ring "lit sphere" radial gradient (defs in RadarChart), opacity
+              1.0 normal / 0.35 dimmed (EXPL-03's locked value), animated 200ms per the Animation
+              Spec ("Blip dim (filter match/non-match)"). */}
           <circle
             r={VISIBLE_RADIUS}
-            className={`${RING_FILL_CLASS[entry.ring]} transition-opacity duration-200`}
+            fill={`url(#blipGrad-${entry.ring})`}
+            className="transition-opacity duration-200"
             opacity={isDimmed ? 0.35 : 1}
           />
           {/* Layer 3: number glyph -- #1a1a1a on full fill, swaps to foreground when dimmed so it
@@ -186,12 +228,9 @@ export function Blip({
           >
             {number}
           </text>
+          {/* isNew pulse ring OR movement notch -- never both, see `indicator` above. */}
+          {indicator}
         </g>
-        {/* isNew pulse ring OR movement notch -- never both, see `indicator` above. */}
-        {indicator}
-        {/* Documents the 44px hit-area footprint below; purely visual, matches the real
-            foreignObject button's size exactly. */}
-        <circle r={22} fill="transparent" />
       </g>
       <foreignObject
         x={-HIT_AREA_RADIUS}

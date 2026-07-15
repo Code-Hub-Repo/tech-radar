@@ -19,14 +19,36 @@ export function Header() {
   }
 
   return (
-    <header className="flex flex-wrap items-center justify-between gap-4 border-b border-border bg-surface px-6 py-4">
-      <div className="flex items-baseline gap-4">
-        <span className="font-mono text-[28px] font-semibold leading-[1.2] text-foreground">
-          Code<span className="text-accent">.Hub</span>
-        </span>
-        <h1 className="font-mono text-[28px] font-semibold leading-[1.2] text-foreground">
-          Tech Radar
-        </h1>
+    <header className="relative flex flex-wrap items-center justify-between gap-4 border-b border-border bg-gradient-to-b from-surface to-background px-6 py-5">
+      {/* Thin accent underline — a hairline of brand color across the header base, glowing softly. */}
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 bottom-0 h-px"
+        style={{
+          background:
+            'linear-gradient(90deg, transparent, rgba(249,115,22,0.55) 20%, rgba(249,115,22,0.55) 80%, transparent)',
+          boxShadow: '0 0 8px rgba(249,115,22,0.35)',
+        }}
+      />
+      <div>
+        <div className="flex items-baseline gap-3">
+          <span
+            className="font-mono text-[28px] font-semibold leading-[1.15] text-foreground"
+            style={{ textShadow: '0 0 18px rgba(249,115,22,0.25)' }}
+          >
+            Code<span className="text-accent">.Hub</span>
+          </span>
+          <span aria-hidden="true" className="font-mono text-[22px] text-border">
+            /
+          </span>
+          <h1 className="font-mono text-[28px] font-semibold leading-[1.15] text-foreground">
+            Tech Radar
+          </h1>
+        </div>
+        <p className="mt-1.5 max-w-xl font-sans text-[13px] leading-[1.5] text-muted">
+          The technologies Code.Hub builds on — what we{' '}
+          <span className="text-accent">adopt</span>, trial, assess, and hold, on one living radar.
+        </p>
       </div>
       <div className="flex items-center gap-4">
         <SearchInput value={query} onChange={handleQueryChange} debounceMs={SEARCH_DEBOUNCE_MS} />

@@ -43,6 +43,21 @@ const COMPACT_LABEL_WRAP_THRESHOLD = 300
 // font-size * 1.4), applied only when wrapLabelLines() below returns two lines.
 const LABEL_LINE_HEIGHT = 14 * 1.4
 
+// Per-ring "lit sphere" gradient stops (light top-center highlight -> ring color edge), rendered
+// as <radialGradient> defs below and consumed by Blip.tsx via url(#blipGrad-<RING>). The `base`
+// values mirror tokens.css's --color-ring-* exactly; `light` is a lifted tint of each for the
+// highlight. Kept here (not in Blip) because the gradient defs must live in this SVG document.
+const BLIP_GRADIENTS = [
+  { ring: 'ADOPT', light: '#fdba74', base: '#f97316' },
+  { ring: 'TRIAL', light: '#7dd3fc', base: '#38bdf8' },
+  { ring: 'ASSESS', light: '#c4b5fd', base: '#a78bfa' },
+  { ring: 'HOLD', light: '#d1d5db', base: '#9ca3af' },
+] as const
+
+// Per-blip entrance stagger step — DOM-index * this many ms sets each blip's animation-delay so
+// they sweep in rather than popping at once. Suppressed by the global reduced-motion reset.
+const BLIP_ENTER_STAGGER_MS = 28
+
 // Generic, data-independent (quadrant, ring) placeholder cells for the loading skeleton --
 // spans all 4 quadrants and all 4 ring bands, deliberately not derived from any real entry.
 const SKELETON_PLACEHOLDERS: { quadrantIndex: number; ringIndex: number }[] = [
@@ -124,27 +139,81 @@ export function RadarChart({
       style={{ overflow: 'visible' }}
       className="h-auto w-full"
     >
-      {bands.map((band, index) => (
-        <circle
-          key={`ring-${index}`}
-          cx={outerRadius}
-          cy={outerRadius}
-          r={band.outer}
-          fill="none"
-          className="stroke-border"
-          strokeWidth={1}
-        />
-      ))}
+      <defs>
+        {/* Disc base — a soft dark radial so the radar reads as a lit surface, not flat #1a1a1a. */}
+        <radialGradient id="radar-backdrop" cx="50%" cy="46%" r="55%">
+          <stop offset="0%" stopColor="#242424" />
+          <stop offset="62%" stopColor="#1c1c1c" />
+          <stop offset="100%" stopColor="#161616" />
+        </radialGradient>
+        {/* Warm "Adopt core" — a subtle accent-tinted glow filling the innermost (Adopt) ring, so
+            the center of the radar — where the tech we back lives — literally glows. */}
+        <radialGradient id="adopt-core" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor="rgba(249, 115, 22, 0.16)" />
+          <stop offset="70%" stopColor="rgba(249, 115, 22, 0.05)" />
+          <stop offset="100%" stopColor="rgba(249, 115, 22, 0)" />
+        </radialGradient>
+        {/* Per-ring "lit sphere" blip fills — lighter toward the top-center, ring color at the
+            edge — referenced by Blip.tsx via url(#blipGrad-<RING>). Defined here so they live in
+            the same SVG document as the blips that consume them. */}
+        {BLIP_GRADIENTS.map(({ ring, light, base }) => (
+          <radialGradient key={ring} id={`blipGrad-${ring}`} cx="38%" cy="32%" r="72%">
+            <stop offset="0%" stopColor={light} />
+            <stop offset="100%" stopColor={base} />
+          </radialGradient>
+        ))}
+      </defs>
 
-      {QUADRANT_ORDER.map((quadrant, quadrantIndex) => (
-        <path
-          key={`sector-${quadrant}`}
-          d={quadrantSectorPath(quadrantIndex, 0, outerRadius)}
-          fill="none"
-          className="stroke-border"
-          strokeWidth={1}
-        />
-      ))}
+      {/* Disc base + concentric depth: painted outermost-first so each smaller circle lightens the
+          center, giving a spotlight-to-core falloff. The innermost band carries the warm Adopt glow. */}
+      <circle cx={outerRadius} cy={outerRadius} r={outerRadius} fill="url(#radar-backdrop)" />
+      {bands
+        .slice()
+        .reverse()
+        .map((band, reverseIndex) => {
+          const bandIndex = bands.length - 1 - reverseIndex
+          const isInnermost = bandIndex === 0
+          return (
+            <circle
+              key={`depth-${bandIndex}`}
+              cx={outerRadius}
+              cy={outerRadius}
+              r={band.outer}
+              fill={isInnermost ? 'url(#adopt-core)' : `rgba(255, 255, 255, ${0.006 + bandIndex * 0.007})`}
+            />
+          )
+        })}
+
+      {/* Ring guide circles + quadrant dividers + center hub — grouped so they draw in together on
+          mount. Inner rings read slightly brighter than outer ones (opacity falloff) for depth. */}
+      <g className="ring-draw-anim animate-ring-draw">
+        {bands.map((band, index) => (
+          <circle
+            key={`ring-${index}`}
+            cx={outerRadius}
+            cy={outerRadius}
+            r={band.outer}
+            fill="none"
+            className="stroke-border"
+            strokeWidth={index === 0 ? 1.25 : 1}
+            strokeOpacity={0.9 - index * 0.16}
+          />
+        ))}
+
+        {QUADRANT_ORDER.map((quadrant, quadrantIndex) => (
+          <path
+            key={`sector-${quadrant}`}
+            d={quadrantSectorPath(quadrantIndex, 0, outerRadius)}
+            fill="none"
+            className="stroke-border"
+            strokeWidth={1}
+            strokeOpacity={0.5}
+          />
+        ))}
+
+        {/* Center hub — a small accent dot marking the bullseye (the "most adopted" origin). */}
+        <circle cx={outerRadius} cy={outerRadius} r={2.5} className="fill-accent" opacity={0.8} />
+      </g>
 
       {QUADRANT_ORDER.map((quadrant, quadrantIndex) => {
         const midAngle = quadrantIndex * (Math.PI / 2) + Math.PI / 4
@@ -203,7 +272,7 @@ export function RadarChart({
         : null}
 
       {!isLoading
-        ? numbers.map(({ entry, number }) => {
+        ? numbers.map(({ entry, number }, domIndex) => {
             const position = positionById.get(entry.id)
             if (!position) {
               return null
@@ -216,6 +285,8 @@ export function RadarChart({
                 number={number}
                 isDimmed={!matched.has(entry.id)}
                 isSelected={selectedEntryId === entry.id}
+                isHovered={hoveredEntryId === entry.id}
+                enterDelayMs={domIndex * BLIP_ENTER_STAGGER_MS}
                 isFocused={false}
                 onSelect={onBlipSelect}
                 onHoverChange={(isHovering) => setHoveredEntryId(isHovering ? entry.id : null)}

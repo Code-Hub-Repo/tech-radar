@@ -140,7 +140,7 @@ describe('Blip', () => {
     ).toBeInTheDocument()
   })
 
-  it('renders no notch, no glow/pulse, and no aria-label suffix when isNew is false and movement is NONE', () => {
+  it('renders no notch, no pulse, no isNew accent glow, and no aria-label suffix when isNew is false and movement is NONE', () => {
     const entry = makeEntry({ isNew: false, movement: 'NONE' })
     const { container } = render(
       <svg>
@@ -150,7 +150,11 @@ describe('Blip', () => {
 
     expect(container.querySelector('polygon')).toBeNull()
     expect(container.querySelector('circle.animate-blip-pulse')).toBeNull()
-    expect(container.innerHTML).not.toContain('drop-shadow')
+    // The isNew-specific accent (orange) glow is absent for a plain entry...
+    expect(container.innerHTML).not.toContain('glow-accent')
+    // ...but every blip now carries a subtle glow in its own ring color (design elevation), so a
+    // plain Adopt blip still sits in a soft orange-ring pool at rest.
+    expect(container.innerHTML).toContain('drop-shadow(var(--glow-ring-adopt))')
     expect(
       screen.getByRole('button', { name: 'Kotlin — Adopt, Languages & Frameworks' }),
     ).toBeInTheDocument()

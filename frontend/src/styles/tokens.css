@@ -50,6 +50,14 @@
      CSS variable only, used via filter: drop-shadow(var(--glow-accent)) for the isNew blip state. */
   --glow-accent: 0 0 12px rgba(249, 115, 22, 0.35);
 
+  /* Per-ring blip glow halos — a soft colored drop-shadow applied to every blip (subtle at rest,
+     intensified on hover/selection in Blip.tsx). Gives the dots depth/atmosphere instead of
+     reading as flat stickers. Consumed via filter: drop-shadow(var(--glow-ring-*)). */
+  --glow-ring-adopt: 0 0 6px rgba(249, 115, 22, 0.5);
+  --glow-ring-trial: 0 0 6px rgba(56, 189, 248, 0.5);
+  --glow-ring-assess: 0 0 6px rgba(167, 139, 250, 0.5);
+  --glow-ring-hold: 0 0 6px rgba(156, 163, 175, 0.45);
+
   /* --animate-* generates the `animate-blip-pulse` utility (RADR-04's isNew looping pulse ring,
      locked to 2s ease-in-out by the UI-SPEC Animation Spec — no built-in Tailwind animation
      matches that exact timing). The paired @keyframes block is nested here, mirroring how
@@ -66,6 +74,37 @@
     100% {
       r: 18px;
       opacity: 0;
+    }
+  }
+
+  /* Staggered blip entrance — each blip scales+fades up from its final position on mount, with a
+     per-blip animation-delay set inline in RadarChart (30ms * DOM index) for a sweep-in reveal.
+     `both` fill-mode holds the from-state (invisible) before the delay elapses so nothing flashes
+     at full opacity first. Suppressed wholesale by the global prefers-reduced-motion reset above. */
+  --animate-blip-enter: blip-enter 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+
+  @keyframes blip-enter {
+    0% {
+      opacity: 0;
+      transform: scale(0.3);
+    }
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  /* Ring guide-circle draw-in — the concentric rings fade+scale in under the blips on mount. */
+  --animate-ring-draw: ring-draw 0.7s ease-out both;
+
+  @keyframes ring-draw {
+    0% {
+      opacity: 0;
+      transform: scale(0.92);
+    }
+    100% {
+      opacity: 1;
+      transform: scale(1);
     }
   }
 
@@ -142,6 +181,50 @@ body {
      inside the viewport. Does not affect DetailPanel's `fixed` mobile sheet/scrim -- overflow on
      body does not establish a containing block for position: fixed. */
   overflow-x: hidden;
+}
+
+/* Atmospheric radar stage — a layered radial glow behind the SVG gives the radar depth and a
+   sense of "lit from within" instead of floating on flat #1a1a1a. A warm accent-tinted core glow
+   fades to the deep background, with a faint cool rim; the whole thing is well under the blip
+   colors' luminance so it never competes with the data. Purely decorative background layer. */
+.radar-stage {
+  position: relative;
+  border-radius: 9999px;
+  background:
+    radial-gradient(circle at 50% 46%, rgba(249, 115, 22, 0.1) 0%, rgba(249, 115, 22, 0.04) 24%, transparent 52%),
+    radial-gradient(circle at 50% 50%, rgba(56, 189, 248, 0.05) 40%, transparent 66%),
+    radial-gradient(circle at 50% 50%, #202020 0%, #191919 60%, #161616 100%);
+}
+
+/* Faint full-page vignette so the viewport edges recede — sits behind all content, fixed to the
+   viewport, non-interactive. Adds atmosphere without touching layout. */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: radial-gradient(circle at 50% 30%, rgba(249, 115, 22, 0.05) 0%, transparent 45%);
+}
+
+/* SVG transform helpers — `transform-box: fill-box` + `transform-origin: center` make a CSS
+   transform (the entrance animation and the hover/selected scale) pivot around the element's own
+   bounding-box center rather than the SVG viewport origin, so a blip scales in place. The two are
+   split across nested groups so the entrance `animation` and the hover `transition` never fight
+   over the same transform property. */
+.blip-enter-anim,
+.blip-hover-scale {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.blip-hover-scale {
+  transition: transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1), filter 200ms ease;
+}
+
+.ring-draw-anim {
+  transform-box: view-box;
+  transform-origin: center;
 }
 
 /* Visible focus ring everywhere, per the design system's "no invisible focus states" rule.
