@@ -73,3 +73,32 @@ export const ringFromSlug: Record<string, Ring> = Object.fromEntries(
 export const quadrantFromSlug: Record<string, Quadrant> = Object.fromEntries(
   (Object.entries(quadrantSlug) as [Quadrant, string][]).map(([quadrant, slug]) => [slug, quadrant]),
 )
+
+// Client-writable fields for POST /api/entries and PUT /api/entries/{id} — mirrors
+// backend/core_api's EntryRequest exactly. isNew/id/createdAt/updatedAt are server-controlled
+// and structurally absent from the wire contract (a deliberate mass-assignment guard on the
+// backend — EntryRequest.kt's own header comment), so the admin form has nothing to over-post.
+export interface EntryRequest {
+  name: string
+  quadrant: Quadrant
+  ring: Ring
+  description: string
+}
+
+// Mirrors backend/core_api's LoginResponse.
+export interface LoginResult {
+  token: string
+  expiresAt: string // ISO 8601
+}
+
+// Mirrors backend/core_api's ErrorResponse/ErrorBody envelope exactly — returned on every
+// non-2xx admin API response except the rate limiter's (429, see api/client.ts's parseApiError).
+export interface ApiErrorBody {
+  code: string
+  message: string
+  details?: Record<string, string> | null
+}
+
+export interface ApiErrorEnvelope {
+  error: ApiErrorBody
+}
