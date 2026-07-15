@@ -9,6 +9,7 @@ import { orderedEntries } from '../../lib/entryOrder'
 import { matchedIds } from '../../lib/filtering'
 import {
   QUADRANT_ORDER,
+  RING_ORDER,
   ringRadii,
   quadrantSectorPath,
   computeBlipLayout,
@@ -42,6 +43,13 @@ const COMPACT_LABEL_WRAP_THRESHOLD = 300
 // Vertical gap between wrapped label lines -- the UI-SPEC Label role's own line-height (14px
 // font-size * 1.4), applied only when wrapLabelLines() below returns two lines.
 const LABEL_LINE_HEIGHT = 14 * 1.4
+
+// Ring-name labels (ADOPT/TRIAL/ASSESS/HOLD) sit along the top (12 o'clock) axis, one per ring
+// band, right at that band's own outer boundary -- the single biggest comprehension aid for a
+// first-time visitor, since nothing else on the radar names which ring is which. Nudged inward
+// from the exact boundary radius so the outermost (Hold) label clears the SVG's own r=outerRadius
+// edge instead of straddling it.
+const RING_LABEL_INSET = 6
 
 // Per-ring "lit sphere" gradient stops (light top-center highlight -> ring color edge), rendered
 // as <radialGradient> defs below and consumed by Blip.tsx via url(#blipGrad-<RING>). The `base`
@@ -294,6 +302,31 @@ export function RadarChart({
             )
           })
         : null}
+
+      {/* Ring-name labels -- decorative chrome only (aria-hidden; the list view's own ring/
+          quadrant headings are the accessible equivalent, EXPL-05). Rendered after the blips so
+          the background-colored text halo (paintOrder="stroke") always wins legibility over a
+          blip that happens to land near the top axis, rather than risking a blip fully covering
+          the label underneath it. */}
+      {RING_ORDER.map((ring, index) => {
+        const { x, y } = polarToCartesian(outerRadius, bands[index].outer - RING_LABEL_INSET, 0)
+        return (
+          <text
+            key={`ring-label-${ring}`}
+            x={x}
+            y={y}
+            textAnchor="middle"
+            dominantBaseline="middle"
+            aria-hidden="true"
+            paintOrder="stroke"
+            strokeLinejoin="round"
+            strokeWidth={4}
+            className="fill-muted stroke-background font-mono text-[9px] font-semibold tracking-wide"
+          >
+            {ring}
+          </text>
+        )
+      })}
 
       {hoveredEntry && hoveredPosition ? (
         <BlipTooltip

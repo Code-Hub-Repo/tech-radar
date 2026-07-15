@@ -91,4 +91,50 @@ describe('RadarChart', () => {
 
     expect(screen.queryAllByRole('button')).toHaveLength(0)
   })
+
+  it('labels every ring (Adopt, Trial, Assess, Hold) along the top axis, hidden from a11y tree', () => {
+    render(
+      <RadarChart
+        entries={[]}
+        filterState={DEFAULT_FILTER_STATE}
+        selectedEntryId={null}
+        size={400}
+        isLoading={false}
+        onBlipSelect={noop}
+      />,
+    )
+
+    for (const ring of ['ADOPT', 'TRIAL', 'ASSESS', 'HOLD']) {
+      const label = screen.getByText(ring)
+      expect(label).toBeInTheDocument()
+      expect(label).toHaveAttribute('aria-hidden', 'true')
+    }
+  })
+
+  it('renders ring labels inner-to-outer (Adopt closest to center, Hold furthest)', () => {
+    render(
+      <RadarChart
+        entries={[]}
+        filterState={DEFAULT_FILTER_STATE}
+        selectedEntryId={null}
+        size={400}
+        isLoading={false}
+        onBlipSelect={noop}
+      />,
+    )
+
+    // All four labels sit on the same vertical (12 o'clock) axis -- x is identical -- so the
+    // inner-to-outer ordering is provable purely from each label's y coordinate (SVG y grows
+    // downward from center; a smaller band-outer radius means a y closer to, but still above,
+    // the center).
+    const ys = ['ADOPT', 'TRIAL', 'ASSESS', 'HOLD'].map((ring) => {
+      const el = screen.getByText(ring)
+      return { x: Number(el.getAttribute('x')), y: Number(el.getAttribute('y')) }
+    })
+
+    expect(new Set(ys.map((p) => p.x)).size).toBe(1)
+    for (let i = 1; i < ys.length; i += 1) {
+      expect(ys[i].y).toBeLessThan(ys[i - 1].y)
+    }
+  })
 })
