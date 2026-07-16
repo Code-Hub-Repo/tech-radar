@@ -7,4 +7,5 @@ object LogTags {
     const val CORE_USECASES = "CORE_USECASES"
     const val FEATURE_ENTRIES = "FEATURE_ENTRIES"
     const val FEATURE_AUTH = "FEATURE_AUTH"
+    const val FEATURE_PROPOSALS = "FEATURE_PROPOSALS"
 }
