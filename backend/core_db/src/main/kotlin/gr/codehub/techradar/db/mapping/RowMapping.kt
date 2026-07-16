@@ -1,12 +1,15 @@
 package gr.codehub.techradar.db.mapping
 
 import gr.codehub.techradar.constants.ChangeType
+import gr.codehub.techradar.constants.ProposalStatus
 import gr.codehub.techradar.constants.Quadrant
 import gr.codehub.techradar.constants.Ring
 import gr.codehub.techradar.db.EntriesTable
 import gr.codehub.techradar.db.EntryHistoryTable
+import gr.codehub.techradar.db.ProposalsTable
 import gr.codehub.techradar.db.model.Entry
 import gr.codehub.techradar.db.model.HistoryRow
+import gr.codehub.techradar.db.model.Proposal
 import kotlin.time.toKotlinInstant
 import org.jetbrains.exposed.v1.core.ResultRow
 
@@ -31,4 +34,17 @@ internal fun ResultRow.toHistoryRow(): HistoryRow = HistoryRow(
     isNew = this[EntryHistoryTable.isNew],
     changeType = ChangeType.valueOf(this[EntryHistoryTable.changeType]),
     changedAt = this[EntryHistoryTable.changedAt].toInstant().toKotlinInstant(),
+)
+
+internal fun ResultRow.toProposal(): Proposal = Proposal(
+    id = this[ProposalsTable.id],
+    name = this[ProposalsTable.name],
+    quadrant = Quadrant.fromApiName(this[ProposalsTable.quadrant]),
+    ring = Ring.fromApiName(this[ProposalsTable.ring]),
+    description = this[ProposalsTable.description],
+    submitterName = this[ProposalsTable.submitterName],
+    status = ProposalStatus.fromApiName(this[ProposalsTable.status]),
+    entryId = this[ProposalsTable.entryId],
+    createdAt = this[ProposalsTable.createdAt].toInstant().toKotlinInstant(),
+    reviewedAt = this[ProposalsTable.reviewedAt]?.toInstant()?.toKotlinInstant(),
 )
