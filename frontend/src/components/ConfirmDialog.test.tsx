@@ -51,4 +51,25 @@ describe('ConfirmDialog', () => {
     expect(deleteButton).toBeDisabled()
     expect(deleteButton).toHaveAttribute('aria-busy', 'true')
   })
+
+  it('uses the title/body/confirmLabel overrides when provided (e.g. the reject-proposal flow)', () => {
+    const onConfirm = vi.fn()
+    render(
+      <ConfirmDialog
+        isOpen
+        entryName="Ktor Client"
+        title="Reject 'Ktor Client'?"
+        body="The suggestion will be marked as rejected."
+        confirmLabel="Reject"
+        onConfirm={onConfirm}
+        onCancel={() => {}}
+      />,
+    )
+
+    const dialog = screen.getByRole('dialog', { name: "Reject 'Ktor Client'?" })
+    expect(dialog).toHaveTextContent('The suggestion will be marked as rejected.')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reject' }))
+    expect(onConfirm).toHaveBeenCalledTimes(1)
+  })
 })

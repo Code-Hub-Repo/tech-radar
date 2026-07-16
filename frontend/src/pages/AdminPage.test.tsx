@@ -4,7 +4,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AuthContext } from '../api/AuthContext'
 import type { AuthContextValue } from '../api/AuthContext'
-import type { Entry } from '../api/types'
+import type { Entry, Proposal } from '../api/types'
 import { ToastProvider } from '../components/Toast'
 import { AdminPage } from './AdminPage'
 
@@ -23,7 +23,23 @@ function makeEntry(overrides: Partial<Entry> = {}): Entry {
   }
 }
 
-function renderAdminPage(logout: AuthContextValue['logout'] = vi.fn()) {
+function makeProposal(overrides: Partial<Proposal> = {}): Proposal {
+  return {
+    id: 4,
+    name: 'Ktor Client',
+    quadrant: 'TOOLS',
+    ring: 'ASSESS',
+    description: 'A lightweight, coroutine-based HTTP client.',
+    submitterName: 'Jane',
+    status: 'PENDING',
+    entryId: null,
+    createdAt: '2026-07-14T00:00:00Z',
+    reviewedAt: null,
+    ...overrides,
+  }
+}
+
+function renderAdminPage(logout: AuthContextValue['logout'] = vi.fn(), initialEntries = ['/admin']) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   const authValue: AuthContextValue = {
     token: 'jwt-value',
@@ -35,7 +51,7 @@ function renderAdminPage(logout: AuthContextValue['logout'] = vi.fn()) {
     <QueryClientProvider client={queryClient}>
       <AuthContext.Provider value={authValue}>
         <ToastProvider>
-          <MemoryRouter initialEntries={['/admin']}>
+          <MemoryRouter initialEntries={initialEntries}>
             <AdminPage />
           </MemoryRouter>
         </ToastProvider>
@@ -44,12 +60,29 @@ function renderAdminPage(logout: AuthContextValue['logout'] = vi.fn()) {
   )
 }
 
+// AdminPage now fires a second, concurrent GET /api/proposals?status=PENDING query (the tab
+// badge, PROP-02) alongside its existing GET /api/entries -- routing it to its own mock instead
+// of the shared `fetchMock` keeps every existing test's call-order/call-count assertions
+// (`fetchMock.mock.calls[N]`, `toHaveBeenCalledTimes`) exactly as they were before this feature
+// existed. Tests that care about proposals data configure `proposalsFetchMock` themselves;
+// everything else gets a harmless empty PENDING queue (badge hidden, tab shows its empty state).
+function stubAdminFetch() {
+  const entriesFetchMock = vi.fn()
+  const proposalsFetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200, json: () => Promise.resolve([]) })
+  vi.stubGlobal('fetch', (url: string, init?: RequestInit) => {
+    if (typeof url === 'string' && url.includes('/api/proposals')) {
+      return proposalsFetchMock(url, init)
+    }
+    return entriesFetchMock(url, init)
+  })
+  return { entriesFetchMock, proposalsFetchMock }
+}
+
 describe('AdminPage shell', () => {
-  const fetchMock = vi.fn()
+  let fetchMock: ReturnType<typeof vi.fn>
 
   beforeEach(() => {
-    fetchMock.mockReset()
-    vi.stubGlobal('fetch', fetchMock)
+    ;({ entriesFetchMock: fetchMock } = stubAdminFetch())
   })
 
   afterEach(() => {
@@ -106,11 +139,10 @@ describe('AdminPage shell', () => {
 })
 
 describe('AdminPage entry management', () => {
-  const fetchMock = vi.fn()
+  let fetchMock: ReturnType<typeof vi.fn>
 
   beforeEach(() => {
-    fetchMock.mockReset()
-    vi.stubGlobal('fetch', fetchMock)
+    ;({ entriesFetchMock: fetchMock } = stubAdminFetch())
   })
 
   afterEach(() => {
@@ -251,6 +283,181 @@ describe('AdminPage entry management', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Delete Kotlin' }))
     const confirmDialog = screen.getByRole('dialog', { name: "Delete 'Kotlin'?" })
     fireEvent.click(within(confirmDialog).getByRole('button', { name: 'Delete' }))
+
+    expect(await screen.findByRole('status')).toHaveTextContent('Session expired')
+    expect(logout).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('AdminPage proposals moderation', () => {
+  let fetchMock: ReturnType<typeof vi.fn>
+  let proposalsFetchMock: ReturnType<typeof vi.fn>
+
+  beforeEach(() => {
+    ;({ entriesFetchMock: fetchMock, proposalsFetchMock } = stubAdminFetch())
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('shows a pending-count badge on the Proposals tab, and hides it when there are no pending proposals', async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200, json: () => Promise.resolve([makeEntry()]) })
+    proposalsFetchMock.mockResolvedValue({ ok: true, status: 200, json: () => Promise.resolve([makeProposal()]) })
+
+    renderAdminPage()
+
+    expect(await screen.findByRole('tab', { name: 'Proposals, 1 pending' })).toBeInTheDocument()
+  })
+
+  it('hides the badge when there are no pending proposals', async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200, json: () => Promise.resolve([makeEntry()]) })
+    proposalsFetchMock.mockResolvedValue({ ok: true, status: 200, json: () => Promise.resolve([]) })
+
+    renderAdminPage()
+
+    expect(await screen.findByRole('tab', { name: 'Proposals' })).toBeInTheDocument()
+  })
+
+  it('switches to the Proposals tab on click and shows its pending list, hiding the Technologies content', async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200, json: () => Promise.resolve([makeEntry()]) })
+    proposalsFetchMock.mockResolvedValue({ ok: true, status: 200, json: () => Promise.resolve([makeProposal()]) })
+
+    const { container } = renderAdminPage()
+    expect(await screen.findByText('Kotlin')).toBeInTheDocument()
+
+    fireEvent.click(await screen.findByRole('tab', { name: 'Proposals, 1 pending' }))
+
+    expect(await screen.findByText('Ktor Client')).toBeInTheDocument()
+    // A hidden element has no computed accessible name (by spec), so asserting on it goes
+    // straight to the DOM node via its stable id rather than a role+name query.
+    expect(container.querySelector('#admin-tabpanel-technologies')).toHaveAttribute('hidden')
+    expect(container.querySelector('#admin-tabpanel-proposals')).not.toHaveAttribute('hidden')
+  })
+
+  it('opens directly on the Proposals tab when the URL carries ?tab=proposals (deep link)', async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200, json: () => Promise.resolve([makeEntry()]) })
+    proposalsFetchMock.mockResolvedValue({ ok: true, status: 200, json: () => Promise.resolve([makeProposal()]) })
+
+    renderAdminPage(vi.fn(), ['/admin?tab=proposals'])
+
+    expect(await screen.findByText('Ktor Client')).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Proposals, 1 pending' })).toHaveAttribute('aria-selected', 'true')
+  })
+
+  it('approves a proposal with an edit via the approve endpoint (never createEntry), toasts success, and drops the badge', async () => {
+    const proposal = makeProposal()
+    const approvedEntry = makeEntry({ id: 21, name: 'Ktor Client', quadrant: 'TOOLS', ring: 'TRIAL', isNew: true })
+    fetchMock.mockResolvedValue({ ok: true, status: 200, json: () => Promise.resolve([makeEntry()]) })
+    proposalsFetchMock
+      .mockResolvedValueOnce({ ok: true, status: 200, json: () => Promise.resolve([proposal]) }) // initial GET ?status=PENDING
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () =>
+          Promise.resolve({
+            proposal: { ...proposal, status: 'APPROVED', entryId: 21, reviewedAt: '2026-07-16T00:00:00Z' },
+            entry: approvedEntry,
+          }),
+      }) // POST .../approve
+      .mockResolvedValueOnce({ ok: true, status: 200, json: () => Promise.resolve([]) }) // refetch GET, now empty
+
+    renderAdminPage(vi.fn(), ['/admin?tab=proposals'])
+    expect(await screen.findByText('Ktor Client')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Approve' }))
+    const dialog = screen.getByRole('dialog', { name: 'Review "Ktor Client"' })
+    fireEvent.change(within(dialog).getByLabelText('Ring'), { target: { value: 'TRIAL' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Approve' }))
+
+    expect(await screen.findByRole('status')).toHaveTextContent('"Ktor Client" approved')
+    expect(screen.queryByRole('dialog')).toBeNull()
+
+    const approveCall = proposalsFetchMock.mock.calls[1] as [string, RequestInit]
+    expect(approveCall[0].endsWith('/api/proposals/4/approve')).toBe(true)
+    expect(approveCall[1].method).toBe('POST')
+    expect(JSON.parse(approveCall[1].body as string)).toEqual({
+      name: 'Ktor Client',
+      quadrant: 'TOOLS',
+      ring: 'TRIAL',
+      description: 'A lightweight, coroutine-based HTTP client.',
+    })
+    // Never routes through createEntry -- no POST to /api/entries anywhere in this flow.
+    const hitCreateEntry = fetchMock.mock.calls.some((call) => {
+      const [url, init] = call as [string, RequestInit?]
+      return url.endsWith('/api/entries') && init?.method === 'POST'
+    })
+    expect(hitCreateEntry).toBe(false)
+
+    expect(await screen.findByRole('tab', { name: 'Proposals' })).toBeInTheDocument() // badge gone
+  })
+
+  it('maps a 409 duplicate-name approve response onto the name field, leaving the proposal pending', async () => {
+    const proposal = makeProposal()
+    fetchMock.mockResolvedValue({ ok: true, status: 200, json: () => Promise.resolve([makeEntry()]) })
+    proposalsFetchMock
+      .mockResolvedValueOnce({ ok: true, status: 200, json: () => Promise.resolve([proposal]) })
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 409,
+        json: () =>
+          Promise.resolve({ error: { code: 'DUPLICATE_NAME', message: "An entry named 'Ktor Client' already exists" } }),
+      })
+
+    renderAdminPage(vi.fn(), ['/admin?tab=proposals'])
+    expect(await screen.findByText('Ktor Client')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Approve' }))
+    const dialog = screen.getByRole('dialog', { name: 'Review "Ktor Client"' })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Approve' }))
+
+    expect(await within(dialog).findByText("An entry named 'Ktor Client' already exists")).toBeInTheDocument()
+    expect(screen.getByRole('dialog')).toBeInTheDocument() // stays open, proposal still pending
+    expect(screen.queryByRole('status')).toBeNull() // no toast for a field-mappable error
+  })
+
+  it('rejects a proposal behind a confirm dialog, toasts success, and drops the badge', async () => {
+    const proposal = makeProposal()
+    fetchMock.mockResolvedValue({ ok: true, status: 200, json: () => Promise.resolve([makeEntry()]) })
+    proposalsFetchMock
+      .mockResolvedValueOnce({ ok: true, status: 200, json: () => Promise.resolve([proposal]) })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ ...proposal, status: 'REJECTED', reviewedAt: '2026-07-16T00:00:00Z' }),
+      }) // POST .../reject
+      .mockResolvedValueOnce({ ok: true, status: 200, json: () => Promise.resolve([]) }) // refetch, now empty
+
+    renderAdminPage(vi.fn(), ['/admin?tab=proposals'])
+    expect(await screen.findByText('Ktor Client')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reject' }))
+    const confirmDialog = screen.getByRole('dialog', { name: "Reject 'Ktor Client'?" })
+    fireEvent.click(within(confirmDialog).getByRole('button', { name: 'Reject' }))
+
+    expect(await screen.findByRole('status')).toHaveTextContent('"Ktor Client" rejected')
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(await screen.findByRole('tab', { name: 'Proposals' })).toBeInTheDocument() // badge gone
+  })
+
+  it('logs out and shows a session-expired toast when approve gets a 401', async () => {
+    const proposal = makeProposal()
+    const logout = vi.fn()
+    fetchMock.mockResolvedValue({ ok: true, status: 200, json: () => Promise.resolve([makeEntry()]) })
+    proposalsFetchMock
+      .mockResolvedValueOnce({ ok: true, status: 200, json: () => Promise.resolve([proposal]) })
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        json: () => Promise.resolve({ error: { code: 'UNAUTHORIZED', message: 'Token is not valid or has expired' } }),
+      })
+
+    renderAdminPage(logout, ['/admin?tab=proposals'])
+    expect(await screen.findByText('Ktor Client')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Approve' }))
+    const dialog = screen.getByRole('dialog', { name: 'Review "Ktor Client"' })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Approve' }))
 
     expect(await screen.findByRole('status')).toHaveTextContent('Session expired')
     expect(logout).toHaveBeenCalledTimes(1)
