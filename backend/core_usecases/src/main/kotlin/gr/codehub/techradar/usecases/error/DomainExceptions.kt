@@ -15,3 +15,9 @@ class ValidationException(
 class DuplicateNameException(name: String) : DomainException("An entry named '$name' already exists")
 
 class NotFoundException(id: Int) : DomainException("Entry $id was not found")
+
+class ProposalNotFoundException(id: Int) : DomainException("Proposal $id was not found")
+
+// Approving/rejecting a proposal that is no longer PENDING — CONTEXT.md's documented double-review
+// disposition (not 200). Covers both "found but already APPROVED" and "found but already REJECTED".
+class ProposalAlreadyReviewedException(id: Int) : DomainException("Proposal $id has already been reviewed")

@@ -8,4 +8,8 @@ val usecaseModule = module {
     single { CreateEntryUseCase(get()) }
     single { UpdateEntryUseCase(get()) }
     single { DeleteEntryUseCase(get()) }
+    single { SubmitProposalUseCase(get()) }
+    single { GetProposalsUseCase(get()) }
+    single { ApproveProposalUseCase(get(), get()) }
+    single { RejectProposalUseCase(get()) }
 }

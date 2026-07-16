@@ -2,7 +2,9 @@ package gr.codehub.techradar.usecases.mapping
 
 import gr.codehub.techradar.api.EntryResponse
 import gr.codehub.techradar.api.HistoryResponse
+import gr.codehub.techradar.api.ProposalResponse
 import gr.codehub.techradar.db.model.HistoryRow
+import gr.codehub.techradar.db.model.Proposal
 import gr.codehub.techradar.usecases.model.EntryWithMovement
 
 fun EntryWithMovement.toEntryResponse(): EntryResponse = EntryResponse(
@@ -27,4 +29,17 @@ fun HistoryRow.toHistoryResponse(): HistoryResponse = HistoryResponse(
     isNew = isNew,
     changeType = changeType,
     changedAt = changedAt,
+)
+
+fun Proposal.toProposalResponse(): ProposalResponse = ProposalResponse(
+    id = id,
+    name = name,
+    quadrant = quadrant,
+    ring = ring,
+    description = description,
+    submitterName = submitterName,
+    status = status,
+    entryId = entryId,
+    createdAt = createdAt,
+    reviewedAt = reviewedAt,
 )
