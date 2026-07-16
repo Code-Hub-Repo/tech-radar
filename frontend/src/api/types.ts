@@ -91,6 +91,71 @@ export interface LoginResult {
   expiresAt: string // ISO 8601
 }
 
+// Frozen API contract (05-CONTEXT.md) — mirrors backend/core_api's proposal DTOs exactly.
+export type ProposalStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
+
+export const proposalStatusLabel: Record<ProposalStatus, string> = {
+  PENDING: 'Pending',
+  APPROVED: 'Approved',
+  REJECTED: 'Rejected',
+}
+
+// Mirrors backend/core_api's ProposalResponse.
+export interface Proposal {
+  id: number
+  name: string
+  quadrant: Quadrant
+  ring: Ring
+  description: string
+  submitterName: string | null
+  status: ProposalStatus
+  entryId: number | null
+  createdAt: string // ISO 8601
+  reviewedAt: string | null // ISO 8601
+}
+
+// Public submit body for POST /api/proposals — mirrors backend's ProposalRequest. quadrant/ring
+// are typed narrowly here (not raw string, unlike the backend DTO) because the form's <select>
+// can only ever produce a valid value, same convention EntryRequest already uses below.
+export interface ProposalRequest {
+  name: string
+  quadrant: Quadrant
+  ring: Ring
+  description: string
+  submitterName?: string
+}
+
+// Admin overrides for POST /api/proposals/{id}/approve — every field optional, mirrors backend's
+// ApproveProposalRequest exactly (an omitted field falls back to the proposal's own submitted
+// value server-side).
+export interface ApproveProposalRequest {
+  name?: string
+  quadrant?: Quadrant
+  ring?: Ring
+  description?: string
+}
+
+// Mirrors backend's ApproveProposalResponse {proposal, entry} wrapper.
+export interface ApproveProposalResult {
+  proposal: Proposal
+  entry: Entry
+}
+
+// Mirrors backend/core_api's HistoryResponse — one row per entry_history snapshot.
+export type ChangeType = 'CREATED' | 'UPDATED' | 'DELETED'
+
+export interface HistoryEntry {
+  id: number
+  entryId: number
+  name: string
+  quadrant: Quadrant
+  ring: Ring
+  description: string
+  isNew: boolean
+  changeType: ChangeType
+  changedAt: string // ISO 8601
+}
+
 // Mirrors backend/core_api's ErrorResponse/ErrorBody envelope exactly — returned on every
 // non-2xx admin API response except the rate limiter's (429, see api/client.ts's parseApiError).
 export interface ApiErrorBody {
