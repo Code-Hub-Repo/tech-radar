@@ -6,6 +6,8 @@ import gr.codehub.techradar.constants.ErrorCodes
 import gr.codehub.techradar.constants.LogTags
 import gr.codehub.techradar.usecases.error.DuplicateNameException
 import gr.codehub.techradar.usecases.error.NotFoundException
+import gr.codehub.techradar.usecases.error.ProposalAlreadyReviewedException
+import gr.codehub.techradar.usecases.error.ProposalNotFoundException
 import gr.codehub.techradar.usecases.error.ValidationException
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.Application
@@ -22,6 +24,8 @@ private const val ROUTE_NOT_FOUND_MESSAGE = "The requested resource was not foun
 private const val VALIDATION_FAILED_FALLBACK_MESSAGE = "Validation failed"
 private const val DUPLICATE_NAME_FALLBACK_MESSAGE = "An entry with that name already exists"
 private const val ENTRY_NOT_FOUND_FALLBACK_MESSAGE = "The requested entry was not found"
+private const val PROPOSAL_NOT_FOUND_FALLBACK_MESSAGE = "The requested proposal was not found"
+private const val PROPOSAL_ALREADY_REVIEWED_FALLBACK_MESSAGE = "This proposal has already been reviewed"
 
 private val logger = LoggerFactory.getLogger("StatusPages")
 
@@ -65,10 +69,52 @@ fun Application.configureStatusPages() {
                 ),
             )
         }
+        exception<ProposalNotFoundException> { call, cause ->
+            call.respond(
+                status = HttpStatusCode.NotFound,
+                message = ErrorResponse(
+                    error = ErrorBody(
+                        code = ErrorCodes.NOT_FOUND,
+                        message = cause.message ?: PROPOSAL_NOT_FOUND_FALLBACK_MESSAGE,
+                    ),
+                ),
+            )
+        }
+        exception<ProposalAlreadyReviewedException> { call, cause ->
+            call.respond(
+                status = HttpStatusCode.Conflict,
+                message = ErrorResponse(
+                    error = ErrorBody(
+                        code = ErrorCodes.ALREADY_REVIEWED,
+                        message = cause.message ?: PROPOSAL_ALREADY_REVIEWED_FALLBACK_MESSAGE,
+                    ),
+                ),
+            )
+        }
         exception<NumberFormatException> { call, cause ->
             logger.warn(
                 "${LogTags.APP} :: StatusPages :: configureStatusPages() :: " +
                     "Malformed numeric parameter on ${call.request.path()}: ${cause.message}",
+            )
+            call.respond(
+                status = HttpStatusCode.BadRequest,
+                message = ErrorResponse(
+                    error = ErrorBody(
+                        code = ErrorCodes.INVALID_PARAMETER,
+                        message = INVALID_PARAMETER_MESSAGE,
+                    ),
+                ),
+            )
+        }
+        // Catches non-numeric malformed params that aren't a NumberFormatException specifically —
+        // e.g. ProposalStatus.fromApiName() on an unrecognized ?status= value (ProposalsAdminRoutes.kt).
+        // Registered after the more specific NumberFormatException handler above; Ktor's StatusPages
+        // resolves by nearest-superclass match, so NumberFormatException (itself an
+        // IllegalArgumentException) still hits its own handler first, never this one.
+        exception<IllegalArgumentException> { call, cause ->
+            logger.warn(
+                "${LogTags.APP} :: StatusPages :: configureStatusPages() :: " +
+                    "Malformed parameter on ${call.request.path()}: ${cause.message}",
             )
             call.respond(
                 status = HttpStatusCode.BadRequest,

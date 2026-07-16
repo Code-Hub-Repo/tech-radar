@@ -14,6 +14,8 @@ import gr.codehub.techradar.db.seed.seed
 import gr.codehub.techradar.feature.auth.authRoutes
 import gr.codehub.techradar.feature.entries.entriesReadRoutes
 import gr.codehub.techradar.feature.entries.entriesWriteRoutes
+import gr.codehub.techradar.feature.proposals.proposalsAdminRoutes
+import gr.codehub.techradar.feature.proposals.proposalsPublicRoutes
 import gr.codehub.techradar.usecases.authModule
 import gr.codehub.techradar.usecases.usecaseModule
 import io.ktor.server.application.Application
@@ -52,5 +54,7 @@ fun Application.module(config: AppConfig) {
         entriesReadRoutes()
         entriesWriteRoutes()
         authRoutes()
+        proposalsPublicRoutes()
+        proposalsAdminRoutes()
     }
 }

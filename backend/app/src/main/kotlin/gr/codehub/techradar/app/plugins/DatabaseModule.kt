@@ -6,6 +6,7 @@ import gr.codehub.techradar.db.connectDatabase
 import gr.codehub.techradar.db.createHikariDataSource
 import gr.codehub.techradar.db.repository.EntriesRepository
 import gr.codehub.techradar.db.repository.HistoryRepository
+import gr.codehub.techradar.db.repository.ProposalsRepository
 import gr.codehub.techradar.db.runFlywayMigration
 import io.ktor.server.application.Application
 import io.ktor.server.application.install
@@ -28,6 +29,7 @@ fun dbModule(config: AppConfig) = module {
     single { connectDatabase(get()) }
     single { EntriesRepository(get()) }
     single { HistoryRepository(get()) }
+    single { ProposalsRepository(get()) }
 }
 
 // Installs Koin with dbModule, then runs Flyway against the exact HikariDataSource Koin just
