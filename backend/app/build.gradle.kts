@@ -12,6 +12,7 @@ application {
 dependencies {
     implementation(project(":feature_entries"))
     implementation(project(":feature_auth"))
+    implementation(project(":feature_proposals"))
     implementation(project(":core_usecases"))
     implementation(project(":core_api"))
     implementation(project(":core_db"))

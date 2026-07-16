@@ -14,6 +14,7 @@ include(
     "app",
     "feature_entries",
     "feature_auth",
+    "feature_proposals",
     "core_usecases",
     "core_api",
     "core_db",
