@@ -4,10 +4,14 @@
 // FilterState; Header and HomePage share the URL as their one source of truth instead of
 // passing search state through props. onOpenIntro is the one exception -- the "How to read
 // this" trigger reopens HomePage's IntroBanner, whose open/dismissed state is local UI state
-// (not URL-shareable), so it's threaded down as a plain callback instead.
-import { Info, Lock } from 'lucide-react'
+// (not URL-shareable), so it's threaded down as a plain callback instead. The "Suggest a
+// technology" trigger (PROP-01) needs no such callback -- it and the modal it opens are entirely
+// self-contained here, with no HomePage state to share.
+import { useState } from 'react'
+import { Info, Lightbulb, Lock } from 'lucide-react'
 import { Link, useSearchParams } from 'react-router'
 import { SearchInput } from '../features/entries/SearchInput'
+import { SuggestModal } from '../features/proposals/SuggestModal'
 import { filterStateFromParams, paramsFromPatch } from '../lib/urlParams'
 
 const SEARCH_DEBOUNCE_MS = 250
@@ -19,6 +23,7 @@ interface HeaderProps {
 export function Header({ onOpenIntro }: HeaderProps) {
   const [searchParams, setSearchParams] = useSearchParams()
   const query = filterStateFromParams(searchParams).query
+  const [isSuggestOpen, setIsSuggestOpen] = useState(false)
 
   function handleQueryChange(value: string) {
     // Typing must never spam browser history (UI-SPEC History behavior -- search = replace).
@@ -66,6 +71,14 @@ export function Header({ onOpenIntro }: HeaderProps) {
           <Info aria-hidden="true" size={14} />
           How to read this
         </button>
+        <button
+          type="button"
+          onClick={() => setIsSuggestOpen(true)}
+          className="flex cursor-pointer items-center gap-1.5 rounded-lg px-3 py-2 font-mono text-[13px] font-semibold text-muted transition-colors duration-200 hover:bg-surface-raised hover:text-foreground"
+        >
+          <Lightbulb aria-hidden="true" size={14} />
+          Suggest a technology
+        </button>
         <SearchInput value={query} onChange={handleQueryChange} debounceMs={SEARCH_DEBOUNCE_MS} />
         {/* DESIGN.md §5's public-radar page pattern names an admin link in the header --
             RequireAuth (features/admin) sends a visitor straight to /admin/login if they aren't
@@ -78,6 +91,7 @@ export function Header({ onOpenIntro }: HeaderProps) {
           Admin
         </Link>
       </div>
+      <SuggestModal isOpen={isSuggestOpen} onClose={() => setIsSuggestOpen(false)} />
     </header>
   )
 }
