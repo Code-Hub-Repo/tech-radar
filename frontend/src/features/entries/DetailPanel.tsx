@@ -1,19 +1,24 @@
-// Full entry view: name, ring, quadrant, isNew/movement state, description. Desktop docked
-// panel is NOT focus-trapped -- the page stays operable alongside it (UI-SPEC Interaction Specs
-// -> Focus trapping). Mobile/tablet 'sheet' IS focus-trapped (Tab/Shift+Tab cycle inside only)
-// with a scrim reusing MASTER.md's .modal-overlay (rgba(0,0,0,0.6) + blur(4px), applied here
-// via Tailwind arbitrary values -- no new CSS class needed). Both variants move focus to the
-// heading on open and return it to the trigger on close (02-05); both apply
-// usePrefersReducedMotion's opacity-only fade end-state on open instead of relying solely on
-// tokens.css's global reduced-motion reset (which only speeds up whatever transition exists,
-// 0.01ms, but doesn't remove the transform itself -- see BRND-04 Animation Spec). No dialog
-// dependency (react-aria/radix/vaul) -- hand-rolled trap, per UI-SPEC's own "No new
-// dependencies" call.
+// Full entry view: name, ring, quadrant, isNew/movement state, description, history timeline,
+// and a copy-link action (HIST-01/SHRE-01). Desktop docked panel is NOT focus-trapped -- the
+// page stays operable alongside it (UI-SPEC Interaction Specs -> Focus trapping). Mobile/tablet
+// 'sheet' IS focus-trapped (Tab/Shift+Tab cycle inside only) with a scrim reusing MASTER.md's
+// .modal-overlay (rgba(0,0,0,0.6) + blur(4px), applied here via Tailwind arbitrary values -- no
+// new CSS class needed). Both variants move focus to the heading on open and return it to the
+// trigger on close (02-05); both apply usePrefersReducedMotion's opacity-only fade end-state on
+// open instead of relying solely on tokens.css's global reduced-motion reset (which only speeds
+// up whatever transition exists, 0.01ms, but doesn't remove the transform itself -- see BRND-04
+// Animation Spec). No dialog dependency (react-aria/radix/vaul) -- hand-rolled trap, per
+// UI-SPEC's own "No new dependencies" call.
 import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties, KeyboardEvent } from 'react'
-import { X } from 'lucide-react'
-import type { Entry } from '../../api/types'
+import { Link2, X } from 'lucide-react'
+import { useEntryHistory } from '../../api/hooks'
+import type { Entry, Ring } from '../../api/types'
 import { ringLabel, quadrantLabel, movementLabel } from '../../api/types'
+import { Skeleton } from '../../components/Skeleton'
+import { useToast } from '../../components/ToastContext'
+import { copyToClipboard } from '../../lib/clipboard'
+import { deriveHistoryTimeline } from '../../lib/historyTimeline'
 import { usePrefersReducedMotion } from '../../lib/usePrefersReducedMotion'
 
 interface DetailPanelProps {
@@ -25,15 +30,32 @@ interface DetailPanelProps {
 
 const HEADING_ID = 'detail-panel-heading'
 // WAI-ARIA APG's typical focusable-descendant selector, scoped to this panel's actual content
-// (one close button today; stays correct if a future field adds a link/input). Explicitly
+// (close + copy-link buttons; stays correct if a future field adds a link/input). Explicitly
 // excludes tabindex="-1" so the programmatically-focused heading is never treated as a trap
 // boundary (it's deliberately not in the normal tab order).
 const FOCUSABLE_SELECTOR = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+
+const HISTORY_DATE_FORMATTER = new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+
+const RING_DOT_CLASS: Record<Ring, string> = {
+  ADOPT: 'bg-ring-adopt',
+  TRIAL: 'bg-ring-trial',
+  ASSESS: 'bg-ring-assess',
+  HOLD: 'bg-ring-hold',
+}
+
+const COPY_LINK_SUCCESS_MESSAGE = 'Link copied'
+const COPY_LINK_FALLBACK_MESSAGE = "Couldn't copy the link — copy it from your browser's address bar instead."
 
 export function DetailPanel({ entry, isOpen, onClose, presentation }: DetailPanelProps) {
   const headingRef = useRef<HTMLHeadingElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const prefersReducedMotion = usePrefersReducedMotion()
+  const toast = useToast()
+  // Fetched fresh per selected entry (HIST-01); entryId is null while nothing is open/selected,
+  // which keeps the query disabled (api/hooks.ts) rather than firing with a bogus id. Called
+  // unconditionally here, before the `!isOpen || !entry` early return below, per Rules of Hooks.
+  const historyQuery = useEntryHistory(entry ? entry.id : null)
   const isSheet = presentation === 'sheet'
   // Mount/re-select-triggered enter transition: false on first paint, flipped true one frame
   // later so the browser has two distinct paints to transition between (a hard mount alone
@@ -74,6 +96,13 @@ export function DetailPanel({ entry, isOpen, onClose, presentation }: DetailPane
 
   if (!isOpen || !entry) {
     return null
+  }
+
+  const timeline = deriveHistoryTimeline(historyQuery.data ?? [])
+
+  async function handleCopyLink() {
+    const succeeded = await copyToClipboard(window.location.href)
+    toast.showToast(succeeded ? 'success' : 'error', succeeded ? COPY_LINK_SUCCESS_MESSAGE : COPY_LINK_FALLBACK_MESSAGE)
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
@@ -148,14 +177,24 @@ export function DetailPanel({ entry, isOpen, onClose, presentation }: DetailPane
         >
           {entry.name}
         </h2>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Close details"
-          className="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-lg text-muted transition-colors duration-200 hover:bg-surface hover:text-foreground"
-        >
-          <X size={20} aria-hidden="true" />
-        </button>
+        <div className="flex shrink-0 items-center gap-1">
+          <button
+            type="button"
+            onClick={handleCopyLink}
+            aria-label="Copy link to this entry"
+            className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-lg text-muted transition-colors duration-200 hover:bg-surface hover:text-foreground"
+          >
+            <Link2 size={18} aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close details"
+            className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-lg text-muted transition-colors duration-200 hover:bg-surface hover:text-foreground"
+          >
+            <X size={20} aria-hidden="true" />
+          </button>
+        </div>
       </div>
       <div className="flex flex-wrap items-center gap-2 font-mono text-[14px] leading-[1.4] text-muted">
         <span>{ringLabel[entry.ring]}</span>
@@ -171,6 +210,54 @@ export function DetailPanel({ entry, isOpen, onClose, presentation }: DetailPane
         ) : null}
       </div>
       <p className="text-[16px] leading-[1.5] text-foreground">{entry.description}</p>
+      <section aria-labelledby="detail-history-heading" className="flex flex-col gap-2 border-t border-border pt-4">
+        <h3
+          id="detail-history-heading"
+          className="font-mono text-[13px] font-semibold uppercase tracking-wide text-muted"
+        >
+          History
+        </h3>
+        {historyQuery.isPending ? (
+          <div className="flex flex-col gap-2">
+            <Skeleton shape="rect" width="100%" height={18} />
+            <Skeleton shape="rect" width="70%" height={18} />
+          </div>
+        ) : historyQuery.isError ? (
+          <p className="text-[14px] leading-[1.5] text-muted">Couldn't load history</p>
+        ) : timeline.length === 0 ? (
+          <p className="text-[14px] leading-[1.5] text-muted">No changes yet</p>
+        ) : (
+          <ul className="flex flex-col gap-1.5">
+            {timeline.map((row) => (
+              <li key={row.id} className="flex items-center gap-2 text-[14px] leading-[1.5] text-foreground">
+                {row.kind === 'created' ? (
+                  <>
+                    <span
+                      aria-hidden="true"
+                      className={`h-2 w-2 shrink-0 rounded-full ${RING_DOT_CLASS[row.ring]}`}
+                    />
+                    <span>
+                      Added to the radar · {HISTORY_DATE_FORMATTER.format(new Date(row.date))} ·{' '}
+                      {ringLabel[row.ring]}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span
+                      aria-hidden="true"
+                      className={`h-2 w-2 shrink-0 rounded-full ${RING_DOT_CLASS[row.toRing]}`}
+                    />
+                    <span>
+                      {ringLabel[row.fromRing]} → {ringLabel[row.toRing]} ·{' '}
+                      {HISTORY_DATE_FORMATTER.format(new Date(row.date))}
+                    </span>
+                  </>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </div>
   )
 
