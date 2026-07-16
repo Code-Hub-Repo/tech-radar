@@ -57,7 +57,9 @@ object TestAppBootstrap {
                 ).use { resultSet -> resultSet.next() && resultSet.getBoolean("table_exists") }
 
                 if (entriesTableExists) {
-                    statement.execute("TRUNCATE TABLE entry_history, entries RESTART IDENTITY CASCADE")
+                    // proposals (V3) always exists once entries does — Flyway applies every pending
+                    // versioned migration in one migrate() call at startup, never a subset.
+                    statement.execute("TRUNCATE TABLE entry_history, entries, proposals RESTART IDENTITY CASCADE")
                 }
             }
         }
